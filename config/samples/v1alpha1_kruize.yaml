@@ -1,0 +1,8 @@
+apiVersion: my.domain/v1alpha1
+kind: Kruize
+metadata:
+  labels:
+    app.kubernetes.io/name: kruize-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: monitoring
+spec:

@@ -637,24 +637,19 @@ spec:
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: kruize-ui-nginx-service  # Changed back to kruize-ui-nginx-service
+  name: kruize-ui-nginx 
   namespace: %s
   labels:
-    app: kruize-ui-nginx  # Changed back to kruize-ui-nginx
+    app: kruize-ui-nginx
 spec:
   to:
     kind: Service
-    name: kruize-ui-nginx-service  # Changed from kruize-ui-service to kruize-ui-nginx-service
+    name: kruize-ui-nginx-service  
     weight: 100
   port:
     targetPort: http
   wildcardPolicy: None
 `, namespace, namespace)
-}
-
-func (r *KruizeReconciler) installKruizeCRDs(ctx context.Context) error {
-	crdManifest := r.generateKruizeCRDManifest()
-	return r.applyYAMLString(ctx, crdManifest, "")
 }
 
 func (r *KruizeReconciler) generateKruizeCRDManifest() string {
@@ -1017,11 +1012,6 @@ func (r *KruizeReconciler) applyYAMLString(ctx context.Context, yamlContent stri
 			obj.SetNamespace(namespace)
 		}
 
-		// Apply security context fixes for Pod Security Standards
-		if obj.GetKind() == "Deployment" || obj.GetKind() == "StatefulSet" {
-			r.applySecurityContext(obj)
-		}
-
 		// Apply the object
 		err = r.Client.Patch(ctx, obj, client.Apply, &client.PatchOptions{
 			FieldManager: "kruize-operator",
@@ -1081,11 +1071,4 @@ func (r *KruizeReconciler) isClusterScopedResource(kind string) bool {
 		}
 	}
 	return false
-}
-
-// TODO: this is a fix to RBAC but need to identify if this is the correct way to do it
-func (r *KruizeReconciler) applySecurityContext(obj *unstructured.Unstructured) {
-	// Skip security context application for OpenShift - let it handle user assignment
-	fmt.Printf("Skipping security context override for OpenShift compatibility\n")
-	return
 }

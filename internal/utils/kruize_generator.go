@@ -707,7 +707,7 @@ func (g *KruizeResourceGenerator) kruizeUINginxPod() *corev1.Pod {
 					Command: []string{
 						"sh",
 						"-c",
-						"until curl --head --silent http://kruize-optimizer:8080; do echo 'Waiting for Kruize Optimizer...'; sleep 2; done",
+						"until curl -s http://kruize-optimizer:8080 > /dev/null; do echo 'Waiting for Kruize Optimizer service at http://kruize-optimizer:8080...'; sleep 5; done",
 					},
 				},
 			},
@@ -1646,7 +1646,7 @@ func (g *KruizeResourceGenerator) OptimizerDeployment() *appsv1.Deployment {
 							Command: []string{
 								"sh",
 								"-c",
-								"until curl --head --silent http://kruize:8080; do echo 'Waiting for Kruize...'; sleep 2; done",
+								"until curl -s http://kruize:8080 > /dev/null; do echo 'Waiting for Kruize service at http://kruize:8080...'; sleep 5; done",
 							},
 						},
 					},
@@ -1659,7 +1659,7 @@ func (g *KruizeResourceGenerator) OptimizerDeployment() *appsv1.Deployment {
 								{ContainerPort: 8080},
 							},
 							Env: []corev1.EnvVar{
-								{Name: "KRUIZE_SCAN_INTERVAL", Value: "m"},
+								{Name: "KRUIZE_SCAN_INTERVAL", Value: "5m"},
 								{Name: "KRUIZE_JOB_POLLING_INTERVAL", Value: "1m"},
 								{Name: "KRUIZE_URL", Value: fmt.Sprintf("http://kruize.%s.svc.cluster.local:8080", g.Namespace)},
 								{Name: "KRUIZE_PROFILE_GIT_URL", Value: "local"},

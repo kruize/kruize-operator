@@ -707,7 +707,7 @@ func (g *KruizeResourceGenerator) kruizeUINginxPod() *corev1.Pod {
 					Command: []string{
 						"sh",
 						"-c",
-						"until curl --head --fail --silent http://kruize-optimizer:8080; do echo 'Waiting for Kruize Optimizer...'; sleep 2; done",
+						"until curl --head --silent http://kruize-optimizer:8080; do echo 'Waiting for Kruize Optimizer...'; sleep 2; done",
 					},
 				},
 			},
@@ -1646,7 +1646,7 @@ func (g *KruizeResourceGenerator) OptimizerDeployment() *appsv1.Deployment {
 							Command: []string{
 								"sh",
 								"-c",
-								"until curl --head --fail --silent http://kruize:8080; do echo 'Waiting for Kruize...'; sleep 2; done",
+								"until curl --head --silent http://kruize:8080; do echo 'Waiting for Kruize...'; sleep 2; done",
 							},
 						},
 					},

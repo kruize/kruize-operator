@@ -31,17 +31,21 @@ type KruizeResourceGenerator struct {
 	Namespace         string
 	Autotune_image    string
 	Autotune_ui_image string
+	Optimizer_image   string
 	ClusterType       string // "openshift", "minikube", or "kind"
 }
 
 // NewKruizeResourceGenerator creates a new generator for Kruize resources.
-func NewKruizeResourceGenerator(namespace string, autotuneImage string, autotuneUIImage string, clusterType string) *KruizeResourceGenerator {
+func NewKruizeResourceGenerator(namespace string, autotuneImage string, autotuneUIImage string, optimizerImage string, clusterType string) *KruizeResourceGenerator {
 	// If no image is provided from the CR, use a sensible default.
 	if autotuneImage == "" {
 		autotuneImage = "quay.io/kruize/autotune_operator:latest"
 	}
 	if autotuneUIImage == "" {
 		autotuneUIImage = "quay.io/kruize/kruize-ui:0.0.9"
+	}
+	if optimizerImage == "" {
+		optimizerImage = "quay.io/rh-ee-shesaxen/optimizer:pocv5"
 	}
 	if clusterType == "" {
 		clusterType = constants.ClusterTypeOpenShift // Default to openshift for backward compatibility
@@ -50,6 +54,7 @@ func NewKruizeResourceGenerator(namespace string, autotuneImage string, autotune
 		Namespace:         namespace,
 		Autotune_image:    autotuneImage,
 		Autotune_ui_image: autotuneUIImage,
+		Optimizer_image:   optimizerImage,
 		ClusterType:       clusterType,
 	}
 }
@@ -66,6 +71,8 @@ func (g *KruizeResourceGenerator) ClusterScopedResources() []client.Object {
 		g.instaslicesAccessClusterRoleBinding(),
 		g.kruizeEditKOClusterRoleBinding(),
 		g.AutotuneClusterRoleBinding(),
+		g.OptimizerClusterRole(),
+		g.OptimizerClusterRoleBinding(),
 		g.ManualStorageClass(),
 		g.kruizeDBPersistentVolume(),
 		g.kruizeDBPersistentVolumeClaim(),
@@ -80,6 +87,9 @@ func (g *KruizeResourceGenerator) NamespacedResources() []client.Object {
 		g.kruizeDBService(),
 		g.kruizeDeployment(),
 		g.kruizeService(),
+		g.OptimizerServiceAccount(),
+		g.OptimizerDeployment(),
+		g.OptimizerService(),
 		g.createPartitionCronJob(),
 		g.kruizeServiceMonitor(),
 		g.nginxConfigMap(),
@@ -88,8 +98,8 @@ func (g *KruizeResourceGenerator) NamespacedResources() []client.Object {
 		g.deletePartitionCronJob(),
 	}
 
-    objects = append(objects, g.Routes()...)
-    return objects
+	objects = append(objects, g.Routes()...)
+	return objects
 }
 
 func (g *KruizeResourceGenerator) Routes() []client.Object {
@@ -672,7 +682,6 @@ func (g *KruizeResourceGenerator) kruizeService() *corev1.Service {
 	}
 }
 
-
 func (g *KruizeResourceGenerator) kruizeUINginxPod() *corev1.Pod {
 	return &corev1.Pod{
 		// The TypeMeta tells the client which kind of object this is.
@@ -690,6 +699,18 @@ func (g *KruizeResourceGenerator) kruizeUINginxPod() *corev1.Pod {
 		},
 		// The Spec defines the desired state of the Pod.
 		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{
+				{
+					Name:            "wait-for-kruize-optimizer",
+					Image:           "curlimages/curl:latest",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command: []string{
+						"sh",
+						"-c",
+						"until curl --head --fail --silent http://kruize-optimizer:8080; do echo 'Waiting for Kruize Optimizer...'; sleep 2; done",
+					},
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:            "kruize-ui-nginx-container",
@@ -755,31 +776,47 @@ func (g *KruizeResourceGenerator) kruizeUINginxPod() *corev1.Pod {
 
 // nginxConfigMap is an internal helper that generates the ConfigMap for the Nginx configuration.
 func (g *KruizeResourceGenerator) nginxConfigMap() *corev1.ConfigMap {
-	nginxConf := `
+	nginxConf := fmt.Sprintf(`
 events {}
 http {
+  include       /etc/nginx/mime.types;
+  default_type  application/octet-stream;
+
+  # 1. Define the Upstreams (Backends)
   upstream kruize-api {
 	server kruize:8080;
+  }
+
+  # NEW: Define where the Optimizer lives
+  upstream kruize-optimizer-api {
+	server kruize-optimizer.%s.svc.cluster.local:8080;
   }
 
   server {
 	listen 8080;
 	server_name localhost;
-
 	root   /usr/share/nginx/html;
+	index index.html;
 
+	# 2. Proxy /api to Kruize
 	location ^~ /api/ {
 	  rewrite ^/api(.*)$ $1 break;
 	  proxy_pass http://kruize-api;
 	}
 
+	# 3. NEW: Proxy /optimizer-api to Optimizer
+	location ^~ /optimizer-api/ {
+	  rewrite ^/optimizer-api(.*)$ $1 break;
+	  proxy_pass http://kruize-optimizer-api;
+	}
+
+	# 4. Handle Client-Side Routing (Fixes 404 on refresh)
 	location / {
-	  index index.html;
-	  error_page 404 =200 /index.html;
+	  try_files $uri $uri/ /index.html;
 	}
   }
 }
-`
+`, g.Namespace)
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -864,7 +901,6 @@ func (g *KruizeResourceGenerator) kruizeEditKOClusterRoleBinding() *rbacv1.Clust
 		},
 	}
 }
-
 
 // kruizeEditKOClusterRoleBindingKubernetes generates the ClusterRoleBinding for kruize-edit-ko
 func (g *KruizeResourceGenerator) kruizeEditKOClusterRoleBindingKubernetes() *rbacv1.ClusterRoleBinding {
@@ -1451,7 +1487,6 @@ func (g *KruizeResourceGenerator) kruizeToPrometheusNetworkPolicy() *networkingv
 	}
 }
 
-
 // recommendationUpdaterClusterRoleBindingKubernetes generates the ClusterRoleBinding for the recommendation updater.
 func (g *KruizeResourceGenerator) recommendationUpdaterClusterRoleBindingKubernetes() *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
@@ -1482,6 +1517,8 @@ func (g *KruizeResourceGenerator) KubernetesClusterScopedResources() []client.Ob
 		g.instaslicesAccessClusterRole(),
 		g.instaslicesAccessClusterRoleBindingKubernetes(),
 		g.kruizeEditKOClusterRoleBindingKubernetes(),
+		g.OptimizerClusterRole(),
+		g.OptimizerClusterRoleBinding(),
 		g.kruizeDBPersistentVolumeKubernetes(),
 		g.kruizeDBPersistentVolumeClaimKubernetes(),
 	}
@@ -1495,11 +1532,171 @@ func (g *KruizeResourceGenerator) KubernetesNamespacedResources() []client.Objec
 		g.kruizeDBService(),
 		g.kruizeDeploymentKubernetes(),
 		g.kruizeServiceKubernetes(),
+		g.OptimizerServiceAccount(),
+		g.OptimizerDeployment(),
+		g.OptimizerService(),
 		g.createPartitionCronJob(),
 		g.kruizeServiceMonitor(),
 		g.nginxConfigMap(),
 		g.kruizeUINginxService(),
 		g.kruizeUINginxPod(),
 		g.deletePartitionCronJob(),
+	}
+}
+
+// ============================================================================
+// Optimizer Resources
+// ============================================================================
+
+func (g *KruizeResourceGenerator) OptimizerServiceAccount() *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ServiceAccount",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kruize-optimizer-sa",
+			Namespace: g.Namespace,
+		},
+	}
+}
+
+func (g *KruizeResourceGenerator) OptimizerClusterRole() *rbacv1.ClusterRole {
+	return &rbacv1.ClusterRole{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRole",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kruize-optimizer-role",
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"namespaces"},
+				Verbs:     []string{"get", "list", "watch", "patch", "update"},
+			},
+			{
+				APIGroups: []string{"apps"},
+				Resources: []string{"deployments", "statefulsets", "replicasets"},
+				Verbs:     []string{"get", "list", "watch", "patch", "update"},
+			},
+		},
+	}
+}
+
+func (g *KruizeResourceGenerator) OptimizerClusterRoleBinding() *rbacv1.ClusterRoleBinding {
+	return &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRoleBinding",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kruize-optimizer-binding",
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      "kruize-optimizer-sa",
+				Namespace: g.Namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "ClusterRole",
+			Name:     "kruize-optimizer-role",
+			APIGroup: "rbac.authorization.k8s.io",
+		},
+	}
+}
+
+func (g *KruizeResourceGenerator) OptimizerDeployment() *appsv1.Deployment {
+	replicas := int32(1)
+	return &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kruize-optimizer",
+			Namespace: g.Namespace,
+			Labels: map[string]string{
+				"app": "kruize-optimizer",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "kruize-optimizer",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "kruize-optimizer",
+					},
+				},
+				Spec: corev1.PodSpec{
+					ServiceAccountName: "kruize-optimizer-sa",
+					InitContainers: []corev1.Container{
+						{
+							Name:            "wait-for-kruize",
+							Image:           "curlimages/curl:latest",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command: []string{
+								"sh",
+								"-c",
+								"until curl --head --fail --silent http://kruize:8080; do echo 'Waiting for Kruize...'; sleep 2; done",
+							},
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name:            "kruize-optimizer",
+							Image:           g.Optimizer_image,
+							ImagePullPolicy: corev1.PullAlways,
+							Ports: []corev1.ContainerPort{
+								{ContainerPort: 8080},
+							},
+							Env: []corev1.EnvVar{
+								{Name: "KRUIZE_SCAN_INTERVAL", Value: "m"},
+								{Name: "KRUIZE_JOB_POLLING_INTERVAL", Value: "1m"},
+								{Name: "KRUIZE_URL", Value: fmt.Sprintf("http://kruize.%s.svc.cluster.local:8080", g.Namespace)},
+								{Name: "KRUIZE_PROFILE_GIT_URL", Value: "local"},
+								{Name: "KRUIZE_PROFILE_GIT_BASE_URL", Value: "local"},
+								{Name: "KRUIZE_TARGET_LABEL_LIMIT", Value: "5"},
+								{Name: "KRUIZE_TARGET_LABELS", Value: "[\"kruize/autotune=enabled\"]"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (g *KruizeResourceGenerator) OptimizerService() *corev1.Service {
+	return &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Service",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kruize-optimizer",
+			Namespace: g.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeClusterIP,
+			Selector: map[string]string{
+				"app": "kruize-optimizer",
+			},
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http",
+					Port:       8080,
+					TargetPort: intstr.FromInt(8080),
+				},
+			},
+		},
 	}
 }

@@ -31,8 +31,9 @@ type KruizeSpec struct {
 	// Foo is an example field of Kruize. Edit kruize_types.go to remove/update
 	Size                int32  `json:"size"`
 	Cluster_type        string `json:"cluster_type"`
-	Autotune_image      string  `json:"autotune_image"`
+	Autotune_image      string `json:"autotune_image"`
 	Autotune_ui_image   string `json:"autotune_ui_image"`
+	Optimizer_image     string `json:"optimizer_image,omitempty"`
 	Autotune_configmaps string `json:"autotune_configmaps"`
 	Non_interactive     int32  `json:"non_interactive"`
 	Use_yaml_build      int32  `json:"use_yaml_build"`

@@ -1,0 +1,47 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: kruize-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: Kruize is the Schema for the kruizes API
+      displayName: Kruize
+      kind: Kruize
+      name: kruizes.kruize.io
+      version: v1alpha1
+  description: NA
+  displayName: kruize-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - NA
+  links:
+  - name: Kruize Operator
+    url: https://kruize-operator.domain
+  maintainers:
+  - email: s@gmail.com
+    name: s
+  maturity: alpha
+  provider:
+    name: NA
+  version: 0.0.0

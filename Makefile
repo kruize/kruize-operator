@@ -145,13 +145,58 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
+ARCHS ?= amd64 arm64
+GO_BUILD_FLAGS ?= ./...
+
+.PHONY: go-clean
+go-clean: ## Clean Go module cache per architecture
+	@for arch in $(ARCHS); do \
+		echo "Cleaning Go module cache for $$arch"; \
+		GOARCH=$$arch go clean -modcache; \
+	done
+
+.PHONY: go-mod-tidy
+go-mod-tidy: ## Run go mod tidy per architecture
+	@for arch in $(ARCHS); do \
+		echo "Running go mod tidy for $$arch"; \
+		GOARCH=$$arch go mod tidy; \
+	done
+
+.PHONY: go-mod-vendor
+go-mod-vendor: ## Run go mod vendor
+	go mod vendor
+
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+docker-build: go-clean go-mod-tidy go-mod-vendor ## Build docker image(s)
+# docker-build: ## Build docker image with the manager.
+# 	$(CONTAINER_TOOL) build -t ${IMG} .
+	@for arch in $(ARCHS); do \
+		echo "Building image for $$arch"; \
+		$(CONTAINER_TOOL) build --arch $$arch -t ${IMG}-$$arch .; \
+	done
+# 	$(CONTAINER_TOOL) build --arch amd64 -t ${IMG}-amd64 .
+# 	$(CONTAINER_TOOL) build --arch arm64 -t ${IMG}-arm64 .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
-	$(CONTAINER_TOOL) push ${IMG}
+# 	$(CONTAINER_TOOL) push ${IMG}
+	@for arch in $(ARCHS); do \
+		echo "Pushing image ${IMG}-$$arch"; \
+		$(CONTAINER_TOOL) push ${IMG}-$$arch; \
+	done
+	$(CONTAINER_TOOL) manifest rm ${IMG} 2>/dev/null || true
+	$(CONTAINER_TOOL) manifest create ${IMG}
+	@for arch in $(ARCHS); do \
+		$(CONTAINER_TOOL) manifest add ${IMG} docker://${IMG}-$$arch; \
+	done
+	$(CONTAINER_TOOL) manifest push --all ${IMG}
+# 	$(CONTAINER_TOOL) push ${IMG}-amd64
+# 	$(CONTAINER_TOOL) push ${IMG}-arm64
+# 	$(CONTAINER_TOOL) manifest rm ${IMG} 2>/dev/null || true
+# 	$(CONTAINER_TOOL) manifest create ${IMG}
+# 	$(CONTAINER_TOOL) manifest add ${IMG} docker://${IMG}-amd64
+# 	$(CONTAINER_TOOL) manifest add ${IMG} docker://${IMG}-arm64
+# 	$(CONTAINER_TOOL) manifest push --all ${IMG}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
@@ -247,7 +292,7 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.3.0
-CONTROLLER_TOOLS_VERSION ?= v0.14.0
+CONTROLLER_TOOLS_VERSION ?= v0.16.5
 ENVTEST_VERSION ?= release-0.17
 GOLANGCI_LINT_VERSION ?= v1.57.2
 
@@ -311,11 +356,25 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	@for arch in $(ARCHS); do \
+		echo "Building bundle image for $$arch"; \
+		docker build --platform linux/$$arch -f bundle.Dockerfile -t $(BUNDLE_IMG)-$$arch .; \
+	done
+# 	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
-	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+# 	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+	@for arch in $(ARCHS); do \
+		echo "Pushing bundle image $(BUNDLE_IMG)-$$arch"; \
+		$(CONTAINER_TOOL) push $(BUNDLE_IMG)-$$arch; \
+	done
+	$(CONTAINER_TOOL) manifest rm $(BUNDLE_IMG) 2>/dev/null || true
+	$(CONTAINER_TOOL) manifest create $(BUNDLE_IMG)
+	@for arch in $(ARCHS); do \
+		$(CONTAINER_TOOL) manifest add $(BUNDLE_IMG) docker://$(BUNDLE_IMG)-$$arch; \
+	done
+	$(CONTAINER_TOOL) manifest push --all $(BUNDLE_IMG)
 
 .PHONY: opm
 OPM = $(LOCALBIN)/opm

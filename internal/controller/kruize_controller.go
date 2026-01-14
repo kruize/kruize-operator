@@ -65,9 +65,10 @@ type KruizeReconciler struct {
 //+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;create
-//+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create
-//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;create
+//+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;patch;update
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;patch;update
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;create;list;watch;patch;update
+//+kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch;patch;update
 //+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;create
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create
@@ -160,7 +161,7 @@ func (r *KruizeReconciler) waitForKruizePods(ctx context.Context, namespace stri
 		return nil
 	}
 
-	requiredPods := []string{"kruize", "kruize-ui-nginx", "kruize-db"}
+	requiredPods := []string{"kruize", "kruize-ui-nginx", "kruize-db", "kruize-optimizer"}
 	logger.Info("Waiting for Kruize pods to be ready", "namespace", namespace, "pods", requiredPods)
 
 	timeoutCh := time.After(timeout)
@@ -183,7 +184,7 @@ func (r *KruizeReconciler) waitForKruizePods(ctx context.Context, namespace stri
 			fmt.Printf("Pod status: %v\n", podStatus)
 
 			// Check if we have all required pods running
-			if readyPods >= 3 && totalPods >= 3 {
+			if readyPods >= 4 && totalPods >= 4 {
 				logger.Info("All Kruize pods are ready", "readyPods", readyPods)
 				return nil
 			}
@@ -249,7 +250,7 @@ func (r *KruizeReconciler) deployKruize(ctx context.Context, kruize *kruizev1alp
 	if !constants.IsValidClusterType(cluster_type) {
 		return fmt.Errorf("unsupported cluster type: %s. Supported types are: %s", cluster_type, strings.Join(constants.SupportedClusterTypes, ", "))
 	}
-	
+
 	fmt.Println("Deploying Kruize for cluster type:", cluster_type)
 
 	var autotune_ns = kruize.Spec.Namespace
@@ -282,9 +283,9 @@ func (r *KruizeReconciler) deployKruizeComponents(ctx context.Context, namespace
 		namespace,
 		kruize.Spec.Autotune_image,
 		kruize.Spec.Autotune_ui_image,
+		kruize.Spec.Optimizer_image,
 		clusterType,
 	)
-
 
 	// Reconcile cluster-scoped resources based on cluster type
 	var clusterScopedObjects []client.Object
@@ -294,18 +295,18 @@ func (r *KruizeReconciler) deployKruizeComponents(ctx context.Context, namespace
 	if clusterType == constants.ClusterTypeOpenShift {
 		// OpenShift-specific resources
 
-        	// Reconcile Namespace FIRST (no owner reference)
-        	kruizeNamespace := k8sObjectGenerator.KruizeNamespace()
-        	if err := r.reconcileClusterResource(ctx, kruizeNamespace); err != nil {
-            		logger.Error(err, "Failed to reconcile Namespace")
-            		return err
-        	}
+		// Reconcile Namespace FIRST (no owner reference)
+		kruizeNamespace := k8sObjectGenerator.KruizeNamespace()
+		if err := r.reconcileClusterResource(ctx, kruizeNamespace); err != nil {
+			logger.Error(err, "Failed to reconcile Namespace")
+			return err
+		}
 
-        	kruizeServiceAccount := k8sObjectGenerator.KruizeServiceAccount()
-        	if err := r.reconcileClusterResource(ctx, kruizeServiceAccount); err != nil {
-            		logger.Error(err, "Failed to reconcile kruize service account")
-            		return err
-        	}
+		kruizeServiceAccount := k8sObjectGenerator.KruizeServiceAccount()
+		if err := r.reconcileClusterResource(ctx, kruizeServiceAccount); err != nil {
+			logger.Error(err, "Failed to reconcile kruize service account")
+			return err
+		}
 
 		clusterScopedObjects = k8sObjectGenerator.ClusterScopedResources()
 		configmap = k8sObjectGenerator.KruizeConfigMap()

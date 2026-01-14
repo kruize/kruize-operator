@@ -7,12 +7,13 @@ metadata:
   name: kruize-sample
 spec:
   # Supported values: "openshift", "minikube", "kind"
-  cluster_type: "openshift"
+  cluster_type: "kind"
   size: 3
-  autotune_image: "quay.io/kruize/autotune_operator:0.8"
-  autotune_ui_image: "quay.io/kruize/kruize-ui:0.0.9"
+  autotune_image: "quay.io/rh-ee-shesaxen/autotune:optimizerPoCDemo"
+  autotune_ui_image: "quay.io/rh-ee-shesaxen/kruize-ui:optimizerPoCDemo"
+  optimizer_image: "quay.io/rh-ee-shesaxen/optimizer:optimizerPoCDemo"
   non_interactive: 1
   use_yaml_build: 0	
   autotune_configmaps: "autotune-configmaps"
   # For OpenShift, use: "openshift-tuning", Minikube/KIND, use: "monitoring"
-  namespace: "openshift-tuning"
+  namespace: "monitoring"

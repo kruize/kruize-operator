@@ -1659,7 +1659,7 @@ func (g *KruizeResourceGenerator) OptimizerDeployment() *appsv1.Deployment {
 								{ContainerPort: 8080},
 							},
 							Env: []corev1.EnvVar{
-								{Name: "KRUIZE_SCAN_INTERVAL", Value: "5m"},
+								{Name: "KRUIZE_SCAN_INTERVAL", Value: "1m"},
 								{Name: "KRUIZE_JOB_POLLING_INTERVAL", Value: "1m"},
 								{Name: "KRUIZE_URL", Value: fmt.Sprintf("http://kruize.%s.svc.cluster.local:8080", g.Namespace)},
 								{Name: "KRUIZE_PROFILE_GIT_URL", Value: "local"},

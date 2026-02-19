@@ -8,7 +8,7 @@ metadata:
 spec:
   # Supported values: "openshift", "minikube", "kind"
   cluster_type: "openshift"
-  autotune_image: "quay.io/kruize/autotune_operator:0.8.1"
+  autotune_image: "quay.io/kruize/autotune_operator:0.8.2"
   autotune_ui_image: "quay.io/kruize/kruize-ui:0.0.9"
   # For OpenShift, use: "openshift-tuning", Minikube/KIND, use: "monitoring"
   namespace: "openshift-tuning"

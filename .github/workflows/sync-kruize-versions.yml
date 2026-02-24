@@ -33,6 +33,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Import GPG key and Configure Git
+        id: import-gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_config_global: true
+          git_committer_name: "Shreya Biradar"
+          git_committer_email: "shbirada@ibm.com"
+
       - name: Install required tools
         run: |
           sudo apt-get update -y
@@ -193,6 +206,9 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: "build(deps): update Kruize versions to Autotune ${{ steps.fetch-autotune-version.outputs.kruize_version }} and UI ${{ steps.fetch-ui-version.outputs.ui_version }}"
+          committer: Shreya Biradar <shbirada@ibm.com>
+          author: Shreya Biradar <shbirada@ibm.com>
+          signoff: true
           title: "build(deps): update Kruize image versions"
           body: |
             ## Automated Version Update

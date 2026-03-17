@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"fmt"
-
 	kruizev1alpha1 "github.com/kruize/kruize-operator/api/v1alpha1"
 	"github.com/kruize/kruize-operator/internal/constants"
 	routev1 "github.com/openshift/api/route/v1"
@@ -1055,6 +1054,8 @@ func (g *KruizeResourceGenerator) kruizeService() *corev1.Service {
 			},
 		},
 	}
+}
+
 // kruizeOptimizerDeployment generates the Deployment for the Kruize Optimizer.
 func (g *KruizeResourceGenerator) kruizeOptimizerDeployment() *appsv1.Deployment {
 	replicas := int32(1)
@@ -1141,9 +1142,6 @@ func (g *KruizeResourceGenerator) kruizeOptimizerService() *corev1.Service {
 		},
 	}
 }
-
-}
-
 
 func (g *KruizeResourceGenerator) kruizeUINginxDeployment() *appsv1.Deployment {
 	replicas := int32(1)

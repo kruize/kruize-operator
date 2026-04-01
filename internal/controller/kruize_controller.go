@@ -161,7 +161,7 @@ func (r *KruizeReconciler) waitForKruizePods(ctx context.Context, namespace stri
 		return nil
 	}
 
-	requiredPods := []string{"kruize", "kruize-ui-nginx", "kruize-db"}
+	requiredPods := []string{"kruize", "kruize-ui-nginx", "kruize-db", "kruize-optimizer"}
 	logger.Info("Waiting for Kruize pods to be ready", "namespace", namespace, "pods", requiredPods)
 
 	timeoutCh := time.After(timeout)
@@ -183,8 +183,8 @@ func (r *KruizeReconciler) waitForKruizePods(ctx context.Context, namespace stri
 			logger.Info("Pod status check", "ready", readyPods, "total", totalPods, "namespace", namespace)
 			fmt.Printf("Pod status: %v\n", podStatus)
 
-			// Check if we have all required pods running
-			if readyPods >= 3 && totalPods >= 3 {
+			// Check if we have all required pods running (kruize, kruize-ui-nginx, kruize-db, kruize-optimizer)
+			if readyPods >= 4 && totalPods >= 4 {
 				logger.Info("All Kruize pods are ready", "readyPods", readyPods)
 				return nil
 			}
@@ -244,7 +244,8 @@ func (r *KruizeReconciler) deployKruize(ctx context.Context, kruize *kruizev1alp
 		"cluster_type", kruize.Spec.Cluster_type,
 		"namespace", kruize.Spec.Namespace,
 		"autotune_image", kruize.Spec.Autotune_image,
-		"autotune_ui_image", kruize.Spec.Autotune_ui_image)
+		"autotune_ui_image", kruize.Spec.Autotune_ui_image,
+		"optimizer_image", kruize.Spec.Optimizer_image)
 
 	// Normalize and validate cluster type (case-insensitive)
 	cluster_type := kruize.Spec.Cluster_type
@@ -282,6 +283,7 @@ func (r *KruizeReconciler) deployKruizeComponents(ctx context.Context, namespace
 		namespace,
 		kruize.Spec.Autotune_image,
 		kruize.Spec.Autotune_ui_image,
+		kruize.Spec.Optimizer_image,
 		clusterType,
 		&kruize.Spec,
 		ctx,

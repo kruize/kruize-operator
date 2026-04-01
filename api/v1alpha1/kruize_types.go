@@ -40,6 +40,10 @@ type KruizeSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Autotune UI Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
 	Autotune_ui_image string `json:"autotune_ui_image"`
 
+	// Container image for Kruize Optimizer
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Optimizer Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
+	Optimizer_image   string `json:"optimizer_image,omitempty"`
+
 	// Target namespace for Kruize deployment
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Namespace",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
 	Namespace         string `json:"namespace"`

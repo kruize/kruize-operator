@@ -332,6 +332,19 @@ var _ = Describe("controller", Ordered, func() {
 				return err
 			}, 3*time.Minute, 10*time.Second).Should(Succeed())
 
+			By("checking that Kruize Optimizer deployment is ready")
+			Eventually(func() error {
+				cmd := exec.Command("kubectl", "get", "deployment", "kruize-optimizer", "-n", namespace, "-o", "jsonpath={.status.readyReplicas}")
+				output, err := utils.Run(cmd)
+				if err != nil {
+					return err
+				}
+				if string(output) != "1" {
+					return fmt.Errorf("kruize-optimizer deployment not ready")
+				}
+				return nil
+			}, 3*time.Minute, 10*time.Second).Should(Succeed())
+
 			By("checking that datasource is configured via Kruize API")
 			var datasourceOutput string
 			Eventually(func() error {

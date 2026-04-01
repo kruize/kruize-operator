@@ -517,6 +517,35 @@ func (g *KruizeResourceGenerator) NamespacedResources() []client.Object {
 	return objects
 }
 
+// CoreNamespacedResources generates core Kruize resources (DB, Kruize, UI) without optimizer.
+// Deploy these first and wait for Kruize to be ready before deploying optimizer.
+func (g *KruizeResourceGenerator) CoreNamespacedResources() []client.Object {
+	objects := []client.Object{
+		g.kruizeDBDeployment(),
+		g.kruizeDBService(),
+		g.kruizeDeployment(),
+		g.kruizeService(),
+		g.createPartitionCronJob(),
+		g.kruizeServiceMonitor(),
+		g.nginxConfigMap(),
+		g.kruizeUINginxService(),
+		g.kruizeUINginxPod(),
+		g.deletePartitionCronJob(),
+	}
+
+	objects = append(objects, g.Routes()...)
+	return objects
+}
+
+// OptimizerNamespacedResources generates optimizer-specific resources.
+// Deploy these after Kruize core is ready.
+func (g *KruizeResourceGenerator) OptimizerNamespacedResources() []client.Object {
+	return []client.Object{
+		g.kruizeOptimizerDeployment(),
+		g.kruizeOptimizerService(),
+	}
+}
+
 func (g *KruizeResourceGenerator) Routes() []client.Object {
 	routes := []*routev1.Route{
 		g.generateRoute("kruize", "kruize", "kruize-port"),
@@ -1095,7 +1124,6 @@ func (g *KruizeResourceGenerator) kruizeOptimizerDeployment() *appsv1.Deployment
 								{ContainerPort: 8080},
 							},
 							Env: []corev1.EnvVar{
-								{Name: "ENABLE_SWAGGER", Value: "true"},
 								{Name: "KRUIZE_URL", Value: "http://kruize:8080"},
 								{Name: "KRUIZE_STATE_REFRESH_INTERVAL", Value: "60m"},
 								{Name: "KRUIZE_BULK_SCHEDULER_INTERVAL", Value: "15m"},
@@ -1985,5 +2013,32 @@ func (g *KruizeResourceGenerator) KubernetesNamespacedResources() []client.Objec
 		g.kruizeUINginxService(),
 		g.kruizeUINginxDeployment(),
 		g.deletePartitionCronJob(),
+	}
+}
+
+// CoreKubernetesNamespacedResources returns core Kruize resources for Kubernetes without optimizer.
+// Deploy these first and wait for Kruize to be ready before deploying optimizer.
+func (g *KruizeResourceGenerator) CoreKubernetesNamespacedResources() []client.Object {
+	return []client.Object{
+		g.kruizeToPrometheusNetworkPolicy(),
+		g.kruizeDBDeploymentKubernetes(),
+		g.kruizeDBService(),
+		g.kruizeDeploymentKubernetes(),
+		g.kruizeServiceKubernetes(),
+		g.createPartitionCronJob(),
+		g.kruizeServiceMonitor(),
+		g.nginxConfigMap(),
+		g.kruizeUINginxService(),
+		g.kruizeUINginxPod(),
+		g.deletePartitionCronJob(),
+	}
+}
+
+// OptimizerKubernetesNamespacedResources returns optimizer-specific resources for Kubernetes.
+// Deploy these after Kruize core is ready.
+func (g *KruizeResourceGenerator) OptimizerKubernetesNamespacedResources() []client.Object {
+	return []client.Object{
+		g.kruizeOptimizerDeployment(),
+		g.kruizeOptimizerService(),
 	}
 }

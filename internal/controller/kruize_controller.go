@@ -194,6 +194,53 @@ func (r *KruizeReconciler) waitForKruizePods(ctx context.Context, namespace stri
 	}
 }
 
+// waitForKruizeDeploymentReady waits specifically for the Kruize deployment to be ready
+// before proceeding with optimizer deployment
+func (r *KruizeReconciler) waitForKruizeDeploymentReady(ctx context.Context, namespace string, timeout time.Duration) error {
+	logger := log.FromContext(ctx)
+
+	logger.Info("Waiting for Kruize deployment to be ready before deploying optimizer", "namespace", namespace)
+
+	timeoutCh := time.After(timeout)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeoutCh:
+			return fmt.Errorf("timeout waiting for Kruize deployment to be ready in namespace %s", namespace)
+
+		case <-ticker.C:
+			// Check if kruize deployment exists and is ready
+			deployment := &appsv1.Deployment{}
+			err := r.Get(ctx, client.ObjectKey{
+				Namespace: namespace,
+				Name:      "kruize",
+			}, deployment)
+
+			if err != nil {
+				if errors.IsNotFound(err) {
+					logger.Info("Kruize deployment not found yet, waiting...", "namespace", namespace)
+					continue
+				}
+				logger.Error(err, "Failed to get Kruize deployment")
+				continue
+			}
+
+			// Check if deployment is ready
+			if deployment.Status.ReadyReplicas > 0 && deployment.Status.ReadyReplicas == deployment.Status.Replicas {
+				logger.Info("Kruize deployment is ready", "namespace", namespace, "readyReplicas", deployment.Status.ReadyReplicas)
+				return nil
+			}
+
+			logger.Info("Waiting for Kruize deployment to be ready",
+				"namespace", namespace,
+				"readyReplicas", deployment.Status.ReadyReplicas,
+				"desiredReplicas", deployment.Status.Replicas)
+		}
+	}
+}
+
 func (r *KruizeReconciler) checkKruizePodsStatus(ctx context.Context, namespace string) (int, int, map[string]string, error) {
 	podList := &corev1.PodList{}
 	err := r.Client.List(ctx, podList, client.InNamespace(namespace))
@@ -327,15 +374,43 @@ func (r *KruizeReconciler) deployKruizeComponents(ctx context.Context, namespace
 		return err
 	}
 
-	// Reconcile namespace-scoped resources (WITH owner reference)
-	for _, obj := range namespacedObjects {
+	// Deploy core Kruize resources (DB, Kruize, UI) without optimizer
+	var coreResources []client.Object
+	var optimizerResources []client.Object
+
+	if clusterType == constants.ClusterTypeOpenShift {
+		coreResources = k8sObjectGenerator.CoreNamespacedResources()
+		optimizerResources = k8sObjectGenerator.OptimizerNamespacedResources()
+	} else {
+		coreResources = k8sObjectGenerator.CoreKubernetesNamespacedResources()
+		optimizerResources = k8sObjectGenerator.OptimizerKubernetesNamespacedResources()
+	}
+
+	logger.Info("Deploying core Kruize resources", "namespace", namespace)
+	for _, obj := range coreResources {
 		if err := r.reconcileNamespacedResource(ctx, kruize, obj); err != nil {
-			logger.Error(err, "Failed to reconcile namespaced resource", "Kind", obj.GetObjectKind().GroupVersionKind().Kind, "Name", obj.GetName())
+			logger.Error(err, "Failed to reconcile core resource", "Kind", obj.GetObjectKind().GroupVersionKind().Kind, "Name", obj.GetName())
 			return err
 		}
 	}
 
-	logger.Info("Successfully reconciled all dependent resources", "clusterType", clusterType)
+	// Wait for Kruize deployment to be ready
+	logger.Info("Waiting for Kruize deployment to be ready before deploying optimizer", "namespace", namespace)
+	if err := r.waitForKruizeDeploymentReady(ctx, namespace, 3*time.Minute); err != nil {
+		logger.Error(err, "Kruize deployment not ready, will retry")
+		return err
+	}
+
+	// Deploy optimizer resources after Kruize is ready
+	logger.Info("Kruize is ready, now deploying optimizer", "namespace", namespace)
+	for _, obj := range optimizerResources {
+		if err := r.reconcileNamespacedResource(ctx, kruize, obj); err != nil {
+			logger.Error(err, "Failed to reconcile optimizer resource", "Kind", obj.GetObjectKind().GroupVersionKind().Kind, "Name", obj.GetName())
+			return err
+		}
+	}
+
+	logger.Info("Successfully reconciled all dependent resources in phases", "clusterType", clusterType)
 	return nil
 }
 

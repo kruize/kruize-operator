@@ -39,7 +39,7 @@ const (
 	defaultUIImageTag = "0.1.0"
 	
 	// defaultOptimizerImageTag is the default tag for Kruize Optimizer image
-	defaultOptimizerImageTag = "0.1-test"
+	defaultOptimizerImageTag = "0.1_mvp"
 	
 	// defaultAutotuneImageRepo is the default repository for Kruize Autotune image
 	defaultAutotuneImageRepo = "quay.io/kruize/autotune_operator"

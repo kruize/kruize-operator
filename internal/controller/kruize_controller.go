@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -339,25 +340,22 @@ func (r *KruizeReconciler) deployKruizeComponents(ctx context.Context, namespace
 
 	// Reconcile cluster-scoped resources based on cluster type
 	var clusterScopedObjects []client.Object
-	var namespacedObjects []client.Object
 	var configmap client.Object
 
 	if clusterType == constants.ClusterTypeOpenShift {
 		// OpenShift-specific resources
-        	kruizeServiceAccount := k8sObjectGenerator.KruizeServiceAccount()
-        	if err := r.reconcileClusterResource(ctx, kruizeServiceAccount); err != nil {
-            		logger.Error(err, "Failed to reconcile kruize service account")
-            		return err
-        	}
+	       	kruizeServiceAccount := k8sObjectGenerator.KruizeServiceAccount()
+	       	if err := r.reconcileClusterResource(ctx, kruizeServiceAccount); err != nil {
+	           		logger.Error(err, "Failed to reconcile kruize service account")
+	           		return err
+	       	}
 
 		clusterScopedObjects = k8sObjectGenerator.ClusterScopedResources()
 		configmap = k8sObjectGenerator.KruizeConfigMap()
-		namespacedObjects = k8sObjectGenerator.NamespacedResources()
 	} else {
 		// Kind/Minikube-specific resources
 		clusterScopedObjects = k8sObjectGenerator.KubernetesClusterScopedResources()
 		configmap = k8sObjectGenerator.KruizeConfigMapKubernetes()
-		namespacedObjects = k8sObjectGenerator.KubernetesNamespacedResources()
 	}
 
 	// Reconcile cluster-scoped resources (no owner reference)

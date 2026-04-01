@@ -8,14 +8,9 @@ metadata:
 spec:
   # Supported values: "openshift", "minikube", "kind"
   cluster_type: "openshift"
-<<<<<<< HEAD
   autotune_image: "quay.io/kruize/autotune_operator:0.9"
   autotune_ui_image: "quay.io/kruize/kruize-ui:0.1.0"
-=======
-  autotune_image: "quay.io/kruize/autotune_operator:0.8.1"
-  autotune_ui_image: "quay.io/kruize/kruize-ui:0.0.9"
-  optimizer_image: "quay.io/rh-ee-shesaxen/optimizer:0.1-test"
->>>>>>> 440171c (adding optimizer integration)
+  optimizer_image: "quay.io/rh-ee-shesaxen/optimizer:0.1_mvp"
   # For OpenShift, use: "openshift-tuning", Minikube/KIND, use: "monitoring"
   namespace: "openshift-tuning"
   

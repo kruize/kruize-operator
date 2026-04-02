@@ -1115,6 +1115,23 @@ func (g *KruizeResourceGenerator) kruizeOptimizerDeployment() *appsv1.Deployment
 					},
 				},
 				Spec: corev1.PodSpec{
+					// Init container to wait for Kruize deployment to be ready
+					InitContainers: []corev1.Container{
+						{
+							Name:  "wait-for-kruize",
+							Image: "busybox:1.36",
+							Command: []string{
+								"sh",
+								"-c",
+								`echo "Waiting for Kruize service to be ready...";
+								until wget -q -O- --timeout=5 http://kruize:8080/health >/dev/null 2>&1 || wget -q -O- --timeout=5 http://kruize:8080 >/dev/null 2>&1; do
+								echo "Kruize service not ready yet, waiting...";
+								sleep 5;
+								done;
+								echo "Kruize service is ready!";`,
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:            "kruize-optimizer",

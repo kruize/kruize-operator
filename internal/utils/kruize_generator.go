@@ -529,7 +529,7 @@ func (g *KruizeResourceGenerator) CoreNamespacedResources() []client.Object {
 		g.kruizeServiceMonitor(),
 		g.nginxConfigMap(),
 		g.kruizeUINginxService(),
-		g.kruizeUINginxPod(),
+		g.kruizeUINginxDeployment(),
 		g.deletePartitionCronJob(),
 	}
 
@@ -2046,7 +2046,7 @@ func (g *KruizeResourceGenerator) CoreKubernetesNamespacedResources() []client.O
 		g.kruizeServiceMonitor(),
 		g.nginxConfigMap(),
 		g.kruizeUINginxService(),
-		g.kruizeUINginxPod(),
+		g.kruizeUINginxDeployment(),
 		g.deletePartitionCronJob(),
 	}
 }

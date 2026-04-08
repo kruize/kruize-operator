@@ -494,29 +494,6 @@ func (g *KruizeResourceGenerator) ClusterScopedResources() []client.Object {
 	}
 }
 
-// NamespacedResources generates all OpenShift namespaced resources for Kruize.
-// These resources will get an owner reference set to the Kruize CR.
-func (g *KruizeResourceGenerator) NamespacedResources() []client.Object {
-	objects := []client.Object{
-		g.kruizeDBPersistentVolumeClaim(),
-		g.kruizeDBDeployment(),
-		g.kruizeDBService(),
-		g.kruizeDeployment(),
-		g.kruizeService(),
-		g.kruizeOptimizerDeployment(),
-		g.kruizeOptimizerService(),
-		g.createPartitionCronJob(),
-		g.kruizeServiceMonitor(),
-		g.nginxConfigMap(),
-		g.kruizeUINginxService(),
-		g.kruizeUINginxDeployment(),
-		g.deletePartitionCronJob(),
-	}
-
-	objects = append(objects, g.Routes()...)
-	return objects
-}
-
 // CoreNamespacedResources generates core Kruize resources (DB, Kruize, UI) without optimizer.
 // Deploy these first and wait for Kruize to be ready before deploying optimizer.
 func (g *KruizeResourceGenerator) CoreNamespacedResources() []client.Object {
@@ -2011,26 +1988,6 @@ func (g *KruizeResourceGenerator) KubernetesClusterScopedResources() []client.Ob
 		g.instaslicesAccessClusterRoleBindingKubernetes(),
 		g.kruizeEditKOClusterRoleBindingKubernetes(),
 		g.kruizeDBPersistentVolumeKubernetes(),
-	}
-}
-
-// KubernetesNamespacedResources returns namespaced resources for Kind/minikube/Kubernetes
-func (g *KruizeResourceGenerator) KubernetesNamespacedResources() []client.Object {
-	return []client.Object{
-		g.kruizeDBPersistentVolumeClaimKubernetes(),
-		g.kruizeToPrometheusNetworkPolicy(),
-		g.kruizeDBDeploymentKubernetes(),
-		g.kruizeDBService(),
-		g.kruizeDeploymentKubernetes(),
-		g.kruizeServiceKubernetes(),
-		g.kruizeOptimizerDeployment(),
-		g.kruizeOptimizerService(),
-		g.createPartitionCronJob(),
-		g.kruizeServiceMonitor(),
-		g.nginxConfigMap(),
-		g.kruizeUINginxService(),
-		g.kruizeUINginxDeployment(),
-		g.deletePartitionCronJob(),
 	}
 }
 

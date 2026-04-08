@@ -10,7 +10,7 @@ spec:
   cluster_type: "openshift"
   autotune_image: "quay.io/kruize/autotune_operator:0.9"
   autotune_ui_image: "quay.io/kruize/kruize-ui:0.1.0"
-  optimizer_image: "quay.io/rh-ee-shesaxen/optimizer:0.1_mvp"
+  optimizer_image: "quay.io/kruize/kruize-optimizer:0.0.1"
   # For OpenShift, use: "openshift-tuning", Minikube/KIND, use: "monitoring"
   namespace: "openshift-tuning"
   

@@ -48,7 +48,7 @@ const (
 	defaultUIImageRepo = "quay.io/kruize/kruize-ui"
 	
 	// defaultOptimizerImageRepo is the default repository for Kruize Optimizer image
-	defaultOptimizerImageRepo = "quay.io/rh-ee-shesaxen/optimizer"
+	defaultOptimizerImageRepo = "quay.io/kruize/kruize-optimizer"
 )
 
 // Package-level variables that cache the resolved default images.

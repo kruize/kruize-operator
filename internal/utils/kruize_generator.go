@@ -521,6 +521,7 @@ func (g *KruizeResourceGenerator) NamespacedResources() []client.Object {
 // Deploy these first and wait for Kruize to be ready before deploying optimizer.
 func (g *KruizeResourceGenerator) CoreNamespacedResources() []client.Object {
 	objects := []client.Object{
+		g.kruizeDBPersistentVolumeClaim(),
 		g.kruizeDBDeployment(),
 		g.kruizeDBService(),
 		g.kruizeDeployment(),
@@ -2037,6 +2038,7 @@ func (g *KruizeResourceGenerator) KubernetesNamespacedResources() []client.Objec
 // Deploy these first and wait for Kruize to be ready before deploying optimizer.
 func (g *KruizeResourceGenerator) CoreKubernetesNamespacedResources() []client.Object {
 	return []client.Object{
+		g.kruizeDBPersistentVolumeClaimKubernetes(),
 		g.kruizeToPrometheusNetworkPolicy(),
 		g.kruizeDBDeploymentKubernetes(),
 		g.kruizeDBService(),

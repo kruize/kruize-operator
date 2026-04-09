@@ -63,6 +63,10 @@ type KruizeSpec struct {
 	// Kruize application resource configuration
 	// +optional
 	Kruize *KruizeAppConfig `json:"kruize,omitempty"`
+
+	// Kruize Optimizer configuration
+	// +optional
+	Optimizer *OptimizerConfig `json:"optimizer,omitempty"`
 }
 
 // KubernetesResourceRequirements defines Kubernetes-style resource requirements
@@ -92,6 +96,57 @@ type KruizeAppConfig struct {
 	// Resource requirements
 	// +optional
 	Resources *KubernetesResourceRequirements `json:"resources,omitempty"`
+}
+
+// OptimizerConfig defines configuration for Kruize Optimizer
+type OptimizerConfig struct {
+	// Resource requirements
+	// +optional
+	Resources *KubernetesResourceRequirements `json:"resources,omitempty"`
+
+	// Kruize URL for optimizer to connect to
+	// +optional
+	KruizeURL string `json:"kruizeURL,omitempty"`
+
+	// State refresh interval (e.g., "60m", "1h")
+	// +optional
+	StateRefreshInterval string `json:"stateRefreshInterval,omitempty"`
+
+	// Bulk scheduler interval (e.g., "15m")
+	// +optional
+	BulkSchedulerInterval string `json:"bulkSchedulerInterval,omitempty"`
+
+	// Bulk scheduler startup delay (e.g., "1m")
+	// +optional
+	BulkSchedulerStartupDelay string `json:"bulkSchedulerStartupDelay,omitempty"`
+
+	// Bulk measurement duration (e.g., "15min")
+	// +optional
+	BulkMeasurementDuration string `json:"bulkMeasurementDuration,omitempty"`
+
+	// Webhook URL for Kruize optimizer
+	// +optional
+	WebhookURL string `json:"webhookURL,omitempty"`
+
+	// Target label limit
+	// +optional
+	TargetLabelLimit string `json:"targetLabelLimit,omitempty"`
+
+	// Target labels in JSON format
+	// +optional
+	TargetLabels string `json:"targetLabels,omitempty"`
+
+	// Default datasource name
+	// +optional
+	DefaultDatasource string `json:"defaultDatasource,omitempty"`
+
+	// Default metadata profile name
+	// +optional
+	DefaultMetadataProfile string `json:"defaultMetadataProfile,omitempty"`
+
+	// Default metric profile name
+	// +optional
+	DefaultMetricProfile string `json:"defaultMetricProfile,omitempty"`
 }
 
 // KruizeDBConfig defines configuration for Kruize database

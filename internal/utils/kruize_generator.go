@@ -97,6 +97,74 @@ func (g *KruizeResourceGenerator) parseResourceQuantity(value, defaultValue stri
 	return resource.MustParse(defaultValue)
 }
 
+// getOptimizerEnvVars returns optimizer environment variables with defaults
+func (g *KruizeResourceGenerator) getOptimizerEnvVars() []corev1.EnvVar {
+	// Default values
+	kruizeURL := "http://kruize:8080"
+	stateRefreshInterval := "60m"
+	bulkSchedulerInterval := "15m"
+	bulkSchedulerStartupDelay := "1m"
+	bulkMeasurementDuration := "15min"
+	webhookURL := "http://kruize-optimizer:8080/webhook"
+	targetLabelLimit := "1"
+	targetLabels := `{"kruize/autotune": "enabled"}`
+	defaultDatasource := "prometheus-1"
+	defaultMetadataProfile := "cluster-metadata-local-monitoring"
+	defaultMetricProfile := "resource-optimization-local-monitoring"
+
+	// Override with values from CR if provided
+	if g.KruizeSpec != nil && g.KruizeSpec.Optimizer != nil {
+		opt := g.KruizeSpec.Optimizer
+		if opt.KruizeURL != "" {
+			kruizeURL = opt.KruizeURL
+		}
+		if opt.StateRefreshInterval != "" {
+			stateRefreshInterval = opt.StateRefreshInterval
+		}
+		if opt.BulkSchedulerInterval != "" {
+			bulkSchedulerInterval = opt.BulkSchedulerInterval
+		}
+		if opt.BulkSchedulerStartupDelay != "" {
+			bulkSchedulerStartupDelay = opt.BulkSchedulerStartupDelay
+		}
+		if opt.BulkMeasurementDuration != "" {
+			bulkMeasurementDuration = opt.BulkMeasurementDuration
+		}
+		if opt.WebhookURL != "" {
+			webhookURL = opt.WebhookURL
+		}
+		if opt.TargetLabelLimit != "" {
+			targetLabelLimit = opt.TargetLabelLimit
+		}
+		if opt.TargetLabels != "" {
+			targetLabels = opt.TargetLabels
+		}
+		if opt.DefaultDatasource != "" {
+			defaultDatasource = opt.DefaultDatasource
+		}
+		if opt.DefaultMetadataProfile != "" {
+			defaultMetadataProfile = opt.DefaultMetadataProfile
+		}
+		if opt.DefaultMetricProfile != "" {
+			defaultMetricProfile = opt.DefaultMetricProfile
+		}
+	}
+
+	return []corev1.EnvVar{
+		{Name: "KRUIZE_URL", Value: kruizeURL},
+		{Name: "KRUIZE_STATE_REFRESH_INTERVAL", Value: stateRefreshInterval},
+		{Name: "KRUIZE_BULK_SCHEDULER_INTERVAL", Value: bulkSchedulerInterval},
+		{Name: "KRUIZE_BULK_SCHEDULER_STARTUP_DELAY", Value: bulkSchedulerStartupDelay},
+		{Name: "KRUIZE_BULK_MEASUREMENT_DURATION", Value: bulkMeasurementDuration},
+		{Name: "KRUIZE_WEBHOOK_URL", Value: webhookURL},
+		{Name: "KRUIZE_TARGET_LABEL_LIMIT", Value: targetLabelLimit},
+		{Name: "KRUIZE_TARGET_LABELS", Value: targetLabels},
+		{Name: "KRUIZE_DEFAULT_DATASOURCE", Value: defaultDatasource},
+		{Name: "KRUIZE_DEFAULT_METADATA_PROFILE", Value: defaultMetadataProfile},
+		{Name: "KRUIZE_DEFAULT_METRIC_PROFILE", Value: defaultMetricProfile},
+	}
+}
+
 // getDBResources returns database resource requirements with defaults
 // For minikube/kind, defaults are disabled unless explicitly specified in the CR
 func (g *KruizeResourceGenerator) getDBResources() corev1.ResourceRequirements {
@@ -1118,19 +1186,7 @@ func (g *KruizeResourceGenerator) kruizeOptimizerDeployment() *appsv1.Deployment
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: 8080},
 							},
-							Env: []corev1.EnvVar{
-								{Name: "KRUIZE_URL", Value: "http://kruize:8080"},
-								{Name: "KRUIZE_STATE_REFRESH_INTERVAL", Value: "60m"},
-								{Name: "KRUIZE_BULK_SCHEDULER_INTERVAL", Value: "15m"},
-								{Name: "KRUIZE_BULK_SCHEDULER_STARTUP_DELAY", Value: "1m"},
-								{Name: "KRUIZE_BULK_MEASUREMENT_DURATION", Value: "15min"},
-								{Name: "KRUIZE_WEBHOOK_URL", Value: "http://kruize-optimizer:8080/webhook"},
-								{Name: "KRUIZE_TARGET_LABEL_LIMIT", Value: "1"},
-								{Name: "KRUIZE_TARGET_LABELS", Value: `{"kruize/autotune": "enabled"}`},
-								{Name: "KRUIZE_DEFAULT_DATASOURCE", Value: "prometheus-1"},
-								{Name: "KRUIZE_DEFAULT_METADATA_PROFILE", Value: "cluster-metadata-local-monitoring"},
-								{Name: "KRUIZE_DEFAULT_METRIC_PROFILE", Value: "resource-optimization-local-monitoring"},
-							},
+							Env: g.getOptimizerEnvVars(),
 						},
 					},
 				},

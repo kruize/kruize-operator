@@ -72,3 +72,18 @@ spec:
       limits:
         memory: "768Mi"
         cpu: "0.7"
+  
+  # Kruize Optimizer configuration (optional)
+  optimizer:
+    kruizeURL: "http://kruize:8080"
+    stateRefreshInterval: "60m"
+    bulkSchedulerInterval: "15m"
+    bulkSchedulerStartupDelay: "1m"
+    bulkMeasurementDuration: "15min"
+    webhookURL: "http://kruize-optimizer:8080/webhook"
+    targetLabelLimit: "1"
+    targetLabels: '{"kruize/autotune": "enabled"}'
+    defaultDatasource: "prometheus-1"
+    defaultMetadataProfile: "cluster-metadata-local-monitoring"
+    defaultMetricProfile: "resource-optimization-local-monitoring"
+

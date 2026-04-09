@@ -151,6 +151,67 @@ spec:
               namespace:
                 description: Target namespace for Kruize deployment
                 type: string
+              optimizer:
+                description: Kruize Optimizer configuration
+                properties:
+                  bulkMeasurementDuration:
+                    description: Bulk measurement duration (e.g., "15min")
+                    type: string
+                  bulkSchedulerInterval:
+                    description: Bulk scheduler interval (e.g., "15m")
+                    type: string
+                  bulkSchedulerStartupDelay:
+                    description: Bulk scheduler startup delay (e.g., "1m")
+                    type: string
+                  defaultDatasource:
+                    description: Default datasource name
+                    type: string
+                  defaultMetadataProfile:
+                    description: Default metadata profile name
+                    type: string
+                  defaultMetricProfile:
+                    description: Default metric profile name
+                    type: string
+                  kruizeURL:
+                    description: Kruize URL for optimizer to connect to
+                    type: string
+                  resources:
+                    description: Resource requirements
+                    properties:
+                      limits:
+                        description: Resource limits
+                        properties:
+                          cpu:
+                            description: CPU (e.g., "0.5", "500m")
+                            type: string
+                          memory:
+                            description: Memory (e.g., "100Mi", "1Gi")
+                            type: string
+                        type: object
+                      requests:
+                        description: Resource requests
+                        properties:
+                          cpu:
+                            description: CPU (e.g., "0.5", "500m")
+                            type: string
+                          memory:
+                            description: Memory (e.g., "100Mi", "1Gi")
+                            type: string
+                        type: object
+                    type: object
+                  stateRefreshInterval:
+                    description: State refresh interval (e.g., "60m", "1h")
+                    type: string
+                  targetLabelLimit:
+                    description: Target label limit
+                    type: string
+                  targetLabels:
+                    description: Target labels in JSON format
+                    type: string
+                  webhookURL:
+                    description: Webhook URL for Kruize optimizer
+                    type: string
+                type: object
               optimizer_image:
                 description: Container image for Kruize Optimizer
                 type: string

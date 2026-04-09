@@ -151,6 +151,9 @@ spec:
               namespace:
                 description: Target namespace for Kruize deployment
                 type: string
+              optimizer_image:
+                description: Container image for Kruize Optimizer
+                type: string
               persistentVolume:
                 description: Persistent Volume configuration
                 properties:

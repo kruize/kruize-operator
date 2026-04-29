@@ -974,6 +974,12 @@ func (g *KruizeResourceGenerator) kruizeDeployment() *appsv1.Deployment {
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: "kruize-sa",
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: boolPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					InitContainers: []corev1.Container{
 						{
 							Name:            "wait-for-kruize-db",
@@ -984,6 +990,13 @@ func (g *KruizeResourceGenerator) kruizeDeployment() *appsv1.Deployment {
 								"-c",
 								"until pg_isready -h kruize-db-service -p 5432 -U admin; do\n  echo \"Waiting for kruize-db-service to be ready...\"\n  sleep 2\ndone\n",
 							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: boolPtr(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+								RunAsNonRoot: boolPtr(true),
+							},
 						},
 					},
 					Containers: []corev1.Container{
@@ -991,6 +1004,13 @@ func (g *KruizeResourceGenerator) kruizeDeployment() *appsv1.Deployment {
 							Name:            "kruize",
 							Image:           g.Autotune_image,
 							ImagePullPolicy: corev1.PullAlways,
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: boolPtr(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+								RunAsNonRoot: boolPtr(true),
+							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "config-volume", MountPath: "/etc/config"},
 							},
@@ -1135,6 +1155,16 @@ func (g *KruizeResourceGenerator) kruizeOptimizerDeployment() *appsv1.Deployment
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: 8080},
 							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("200m"),
+									corev1.ResourceMemory: resource.MustParse("256Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("500m"),
+									corev1.ResourceMemory: resource.MustParse("512Mi"),
+								},
+							},
 							Env: []corev1.EnvVar{
 								{Name: "KRUIZE_URL", Value: "http://kruize:8080"},
 								{Name: "KRUIZE_STATE_REFRESH_INTERVAL", Value: "60m"},
@@ -1238,6 +1268,16 @@ func (g *KruizeResourceGenerator) kruizeUINginxDeployment() *appsv1.Deployment {
 							Name:            "kruize-ui-nginx-container",
 							Image:           g.Autotune_ui_image,
 							ImagePullPolicy: corev1.PullAlways,
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("128Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("200m"),
+									corev1.ResourceMemory: resource.MustParse("256Mi"),
+								},
+							},
 							Env: []corev1.EnvVar{
 								{Name: "KRUIZE_UI_ENV", Value: "production"},
 							},
@@ -1708,6 +1748,12 @@ func (g *KruizeResourceGenerator) kruizeDeploymentKubernetes() *appsv1.Deploymen
 					},
 				},
 				Spec: corev1.PodSpec{
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: boolPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					InitContainers: []corev1.Container{
 						{
 							Name:            "wait-for-kruize-db",
@@ -1718,6 +1764,13 @@ func (g *KruizeResourceGenerator) kruizeDeploymentKubernetes() *appsv1.Deploymen
 								"-c",
 								"until pg_isready -h kruize-db-service -p 5432 -U admin; do echo \"Waiting for kruize-db-service to be ready...\"; sleep 2; done",
 							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: boolPtr(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+								RunAsNonRoot: boolPtr(true),
+							},
 						},
 					},
 					Containers: []corev1.Container{
@@ -1725,6 +1778,13 @@ func (g *KruizeResourceGenerator) kruizeDeploymentKubernetes() *appsv1.Deploymen
 							Name:            "kruize",
 							Image:           g.Autotune_image,
 							ImagePullPolicy: corev1.PullAlways,
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: boolPtr(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+								RunAsNonRoot: boolPtr(true),
+							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "config-volume", MountPath: "/etc/config"},
 							},

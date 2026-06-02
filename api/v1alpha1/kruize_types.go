@@ -30,11 +30,11 @@ type KruizeSpec struct {
 
 	// Type of Kubernetes cluster (openshift, minikube, or kind)
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Cluster Type",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:select:openshift","urn:alm:descriptor:com.tectonic.ui:select:minikube","urn:alm:descriptor:com.tectonic.ui:select:kind"}
-	Cluster_type      string `json:"cluster_type"`
+	Cluster_type string `json:"cluster_type"`
 
 	// Container image for Kruize Autotune
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Autotune Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
-	Autotune_image    string `json:"autotune_image"`
+	Autotune_image string `json:"autotune_image"`
 
 	// Container image for Kruize UI
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Autotune UI Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
@@ -42,11 +42,11 @@ type KruizeSpec struct {
 
 	// Container image for Kruize Optimizer
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Optimizer Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
-	Optimizer_image   string `json:"optimizer_image,omitempty"`
+	Optimizer_image string `json:"optimizer_image,omitempty"`
 
 	// Target namespace for Kruize deployment
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Namespace",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
-	Namespace         string `json:"namespace"`
+	Namespace string `json:"namespace"`
 
 	// Persistent Volume configuration
 	// +optional
@@ -63,6 +63,68 @@ type KruizeSpec struct {
 	// Kruize application resource configuration
 	// +optional
 	Kruize *KruizeAppConfig `json:"kruize,omitempty"`
+
+	// Optimizer configuration
+	// +optional
+	Optimizer *OptimizerConfig `json:"optimizer,omitempty"`
+}
+
+// OptimizerConfig defines configuration for Kruize Optimizer
+type OptimizerConfig struct {
+	// URL for Kruize service
+	// +optional
+	// +kubebuilder:validation:Optional
+	KruizeURL string `json:"kruizeURL,omitempty"`
+
+	// Interval for refreshing Kruize state
+	// +optional
+	// +kubebuilder:validation:Optional
+	StateRefreshInterval string `json:"stateRefreshInterval,omitempty"`
+
+	// Interval for bulk scheduler
+	// +optional
+	// +kubebuilder:validation:Optional
+	BulkSchedulerInterval string `json:"bulkSchedulerInterval,omitempty"`
+
+	// Startup delay for bulk scheduler
+	// +optional
+	// +kubebuilder:validation:Optional
+	BulkSchedulerStartupDelay string `json:"bulkSchedulerStartupDelay,omitempty"`
+
+	// Duration for bulk measurements
+	// +optional
+	// +kubebuilder:validation:Optional
+	BulkMeasurementDuration string `json:"bulkMeasurementDuration,omitempty"`
+
+	// Webhook URL for Kruize Optimizer
+	// +optional
+	// +kubebuilder:validation:Optional
+	WebhookURL string `json:"webhookURL,omitempty"`
+
+	// Maximum number of target labels
+	// +optional
+	// +kubebuilder:validation:Optional
+	TargetLabelLimit *int32 `json:"targetLabelLimit,omitempty"`
+
+	// Target labels for filtering
+	// +optional
+	// +kubebuilder:validation:Optional
+	TargetLabels map[string]string `json:"targetLabels,omitempty"`
+
+	// Default datasource name
+	// +optional
+	// +kubebuilder:validation:Optional
+	DefaultDatasource string `json:"defaultDatasource,omitempty"`
+
+	// Default metadata profile name
+	// +optional
+	// +kubebuilder:validation:Optional
+	DefaultMetadataProfile string `json:"defaultMetadataProfile,omitempty"`
+
+	// Default metric profile name
+	// +optional
+	// +kubebuilder:validation:Optional
+	DefaultMetricProfile string `json:"defaultMetricProfile,omitempty"`
 }
 
 // KubernetesResourceRequirements defines Kubernetes-style resource requirements

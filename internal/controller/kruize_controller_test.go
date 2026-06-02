@@ -1380,6 +1380,468 @@ var _ = Describe("Kruize Controller", func() {
     	})
     })
 
+	Context("Optimizer configuration", func() {
+		It("should return correct default optimizer configuration", func() {
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeOpenShift,
+				nil,
+				getTestContext(),
+			)
+
+			// Access the private method through reflection or test the public behavior
+			// Since we can't access private methods directly, we'll test through the deployment
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			// Find the optimizer deployment
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil(), "Optimizer deployment should be generated")
+			Expect(optimizerDeployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+
+			// Get the optimizer container
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			// Verify all 11 default environment variables are present
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Test all default values
+			Expect(envMap["KRUIZE_URL"]).To(Equal("http://kruize:8080"))
+			Expect(envMap["KRUIZE_STATE_REFRESH_INTERVAL"]).To(Equal("60m"))
+			Expect(envMap["KRUIZE_BULK_SCHEDULER_INTERVAL"]).To(Equal("15m"))
+			Expect(envMap["KRUIZE_BULK_SCHEDULER_STARTUP_DELAY"]).To(Equal("1m"))
+			Expect(envMap["KRUIZE_BULK_MEASUREMENT_DURATION"]).To(Equal("15min"))
+			Expect(envMap["KRUIZE_WEBHOOK_URL"]).To(Equal("http://kruize-optimizer:8080/webhook"))
+			Expect(envMap["KRUIZE_TARGET_LABEL_LIMIT"]).To(Equal("1"))
+			Expect(envMap["KRUIZE_DEFAULT_DATASOURCE"]).To(Equal("thanos-1")) // OpenShift uses thanos-1
+			Expect(envMap["KRUIZE_DEFAULT_METADATA_PROFILE"]).To(Equal("cluster-metadata-local-monitoring"))
+			Expect(envMap["KRUIZE_DEFAULT_METRIC_PROFILE"]).To(Equal("resource-optimization-local-monitoring"))
+
+			// Verify TargetLabels JSON
+			Expect(envMap["KRUIZE_TARGET_LABELS"]).To(ContainSubstring("kruize/autotune"))
+			Expect(envMap["KRUIZE_TARGET_LABELS"]).To(ContainSubstring("enabled"))
+		})
+
+		It("should use correct datasource for different cluster types", func() {
+			testCases := []struct {
+				clusterType        string
+				expectedDatasource string
+			}{
+				{constants.ClusterTypeOpenShift, "thanos-1"},
+				{constants.ClusterTypeMinikube, "prometheus-1"},
+				{constants.ClusterTypeKind, "prometheus-1"},
+			}
+
+			for _, tc := range testCases {
+				generator := utils.NewKruizeResourceGenerator(
+					"test-namespace",
+					"",
+					"",
+					"",
+					tc.clusterType,
+					nil,
+					getTestContext(),
+				)
+
+				optimizerResources := generator.OptimizerNamespacedResources()
+
+				var optimizerDeployment *appsv1.Deployment
+				for _, resource := range optimizerResources {
+					if deployment, ok := resource.(*appsv1.Deployment); ok {
+						if deployment.Name == "kruize-optimizer" {
+							optimizerDeployment = deployment
+							break
+						}
+					}
+				}
+
+				Expect(optimizerDeployment).NotTo(BeNil())
+				optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+				envMap := make(map[string]string)
+				for _, env := range optimizerContainer.Env {
+					envMap[env.Name] = env.Value
+				}
+
+				Expect(envMap["KRUIZE_DEFAULT_DATASOURCE"]).To(Equal(tc.expectedDatasource),
+					fmt.Sprintf("Cluster type %s should use datasource %s", tc.clusterType, tc.expectedDatasource))
+			}
+		})
+
+		It("should apply partial optimizer configuration overrides", func() {
+			customTargetLabelLimit := int32(5)
+			customSpec := &kruizev1alpha1.KruizeSpec{
+				Optimizer: &kruizev1alpha1.OptimizerConfig{
+					KruizeURL:            "http://custom-kruize:9090",
+					StateRefreshInterval: "30m",
+					TargetLabelLimit:     &customTargetLabelLimit,
+					// Other fields left empty - should use defaults
+				},
+			}
+
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeKind,
+				customSpec,
+				getTestContext(),
+			)
+
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil())
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Test overridden values
+			Expect(envMap["KRUIZE_URL"]).To(Equal("http://custom-kruize:9090"))
+			Expect(envMap["KRUIZE_STATE_REFRESH_INTERVAL"]).To(Equal("30m"))
+			Expect(envMap["KRUIZE_TARGET_LABEL_LIMIT"]).To(Equal("5"))
+
+			// Test default values for non-overridden fields
+			Expect(envMap["KRUIZE_BULK_SCHEDULER_INTERVAL"]).To(Equal("15m"))
+			Expect(envMap["KRUIZE_WEBHOOK_URL"]).To(Equal("http://kruize-optimizer:8080/webhook"))
+			Expect(envMap["KRUIZE_DEFAULT_DATASOURCE"]).To(Equal("prometheus-1")) // Kind uses prometheus-1
+		})
+
+		It("should apply all optimizer configuration overrides", func() {
+			customTargetLabelLimit := int32(10)
+			customTargetLabels := map[string]string{
+				"custom/label1": "value1",
+				"custom/label2": "value2",
+			}
+
+			customSpec := &kruizev1alpha1.KruizeSpec{
+				Optimizer: &kruizev1alpha1.OptimizerConfig{
+					KruizeURL:                 "http://custom-kruize:9090",
+					StateRefreshInterval:      "45m",
+					BulkSchedulerInterval:     "20m",
+					BulkSchedulerStartupDelay: "2m",
+					BulkMeasurementDuration:   "20min",
+					WebhookURL:                "http://custom-webhook:9090/hook",
+					TargetLabelLimit:          &customTargetLabelLimit,
+					TargetLabels:              customTargetLabels,
+					DefaultDatasource:         "custom-datasource",
+					DefaultMetadataProfile:    "custom-metadata-profile",
+					DefaultMetricProfile:      "custom-metric-profile",
+				},
+			}
+
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeOpenShift,
+				customSpec,
+				getTestContext(),
+			)
+
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil())
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Test all overridden values
+			Expect(envMap["KRUIZE_URL"]).To(Equal("http://custom-kruize:9090"))
+			Expect(envMap["KRUIZE_STATE_REFRESH_INTERVAL"]).To(Equal("45m"))
+			Expect(envMap["KRUIZE_BULK_SCHEDULER_INTERVAL"]).To(Equal("20m"))
+			Expect(envMap["KRUIZE_BULK_SCHEDULER_STARTUP_DELAY"]).To(Equal("2m"))
+			Expect(envMap["KRUIZE_BULK_MEASUREMENT_DURATION"]).To(Equal("20min"))
+			Expect(envMap["KRUIZE_WEBHOOK_URL"]).To(Equal("http://custom-webhook:9090/hook"))
+			Expect(envMap["KRUIZE_TARGET_LABEL_LIMIT"]).To(Equal("10"))
+			Expect(envMap["KRUIZE_DEFAULT_DATASOURCE"]).To(Equal("custom-datasource"))
+			Expect(envMap["KRUIZE_DEFAULT_METADATA_PROFILE"]).To(Equal("custom-metadata-profile"))
+			Expect(envMap["KRUIZE_DEFAULT_METRIC_PROFILE"]).To(Equal("custom-metric-profile"))
+
+			// Verify custom TargetLabels JSON
+			Expect(envMap["KRUIZE_TARGET_LABELS"]).To(ContainSubstring("custom/label1"))
+			Expect(envMap["KRUIZE_TARGET_LABELS"]).To(ContainSubstring("value1"))
+			Expect(envMap["KRUIZE_TARGET_LABELS"]).To(ContainSubstring("custom/label2"))
+			Expect(envMap["KRUIZE_TARGET_LABELS"]).To(ContainSubstring("value2"))
+		})
+
+		It("should handle nil optimizer configuration", func() {
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeMinikube,
+				nil, // nil KruizeSpec
+				getTestContext(),
+			)
+
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil())
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Should use all defaults
+			Expect(envMap["KRUIZE_URL"]).To(Equal("http://kruize:8080"))
+			Expect(envMap["KRUIZE_DEFAULT_DATASOURCE"]).To(Equal("prometheus-1")) // Minikube uses prometheus-1
+		})
+
+		It("should handle empty optimizer configuration", func() {
+			customSpec := &kruizev1alpha1.KruizeSpec{
+				Optimizer: &kruizev1alpha1.OptimizerConfig{},
+			}
+
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeMinikube,
+				customSpec,
+				getTestContext(),
+			)
+
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil())
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Should use all defaults
+			Expect(envMap["KRUIZE_URL"]).To(Equal("http://kruize:8080"))
+			Expect(envMap["KRUIZE_STATE_REFRESH_INTERVAL"]).To(Equal("60m"))
+			Expect(envMap["KRUIZE_DEFAULT_DATASOURCE"]).To(Equal("prometheus-1"))
+		})
+
+		It("should handle custom target labels with multiple entries", func() {
+			customTargetLabelLimit := int32(3)
+			customTargetLabels := map[string]string{
+				"app":         "myapp",
+				"environment": "production",
+				"team":        "platform",
+			}
+
+			customSpec := &kruizev1alpha1.KruizeSpec{
+				Optimizer: &kruizev1alpha1.OptimizerConfig{
+					TargetLabelLimit: &customTargetLabelLimit,
+					TargetLabels:     customTargetLabels,
+				},
+			}
+
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeKind,
+				customSpec,
+				getTestContext(),
+			)
+
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil())
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Verify custom TargetLabels JSON contains all entries
+			targetLabelsJSON := envMap["KRUIZE_TARGET_LABELS"]
+			Expect(targetLabelsJSON).To(ContainSubstring("app"))
+			Expect(targetLabelsJSON).To(ContainSubstring("myapp"))
+			Expect(targetLabelsJSON).To(ContainSubstring("environment"))
+			Expect(targetLabelsJSON).To(ContainSubstring("production"))
+			Expect(targetLabelsJSON).To(ContainSubstring("team"))
+			Expect(targetLabelsJSON).To(ContainSubstring("platform"))
+
+			// Verify custom TargetLabelLimit
+			Expect(envMap["KRUIZE_TARGET_LABEL_LIMIT"]).To(Equal("3"))
+		})
+
+		It("should handle nil target label limit with default fallback", func() {
+			customSpec := &kruizev1alpha1.KruizeSpec{
+				Optimizer: &kruizev1alpha1.OptimizerConfig{
+					TargetLabelLimit: nil, // nil pointer
+					TargetLabels: map[string]string{
+						"kruize/autotune": "enabled",
+					},
+				},
+			}
+
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeMinikube,
+				customSpec,
+				getTestContext(),
+			)
+
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil())
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Should use default value of "1"
+			Expect(envMap["KRUIZE_TARGET_LABEL_LIMIT"]).To(Equal("1"))
+		})
+
+		It("should verify all 11 environment variables are present", func() {
+			generator := utils.NewKruizeResourceGenerator(
+				"test-namespace",
+				"",
+				"",
+				"",
+				constants.ClusterTypeOpenShift,
+				nil,
+				getTestContext(),
+			)
+
+			optimizerResources := generator.OptimizerNamespacedResources()
+
+			var optimizerDeployment *appsv1.Deployment
+			for _, resource := range optimizerResources {
+				if deployment, ok := resource.(*appsv1.Deployment); ok {
+					if deployment.Name == "kruize-optimizer" {
+						optimizerDeployment = deployment
+						break
+					}
+				}
+			}
+
+			Expect(optimizerDeployment).NotTo(BeNil())
+			optimizerContainer := optimizerDeployment.Spec.Template.Spec.Containers[0]
+
+			// Verify exactly 11 environment variables
+			expectedEnvVars := []string{
+				"KRUIZE_URL",
+				"KRUIZE_STATE_REFRESH_INTERVAL",
+				"KRUIZE_BULK_SCHEDULER_INTERVAL",
+				"KRUIZE_BULK_SCHEDULER_STARTUP_DELAY",
+				"KRUIZE_BULK_MEASUREMENT_DURATION",
+				"KRUIZE_WEBHOOK_URL",
+				"KRUIZE_TARGET_LABEL_LIMIT",
+				"KRUIZE_TARGET_LABELS",
+				"KRUIZE_DEFAULT_DATASOURCE",
+				"KRUIZE_DEFAULT_METADATA_PROFILE",
+				"KRUIZE_DEFAULT_METRIC_PROFILE",
+			}
+
+			envMap := make(map[string]string)
+			for _, env := range optimizerContainer.Env {
+				envMap[env.Name] = env.Value
+			}
+
+			// Verify all expected env vars are present
+			for _, expectedVar := range expectedEnvVars {
+				_, exists := envMap[expectedVar]
+				Expect(exists).To(BeTrue(), fmt.Sprintf("Environment variable %s should be present", expectedVar))
+			}
+
+			// Verify we have exactly 11 env vars (no extras)
+			Expect(len(envMap)).To(Equal(11), "Should have exactly 11 environment variables")
+		})
+	})
+	
     var _ = Describe("Metrics Auth Integration", func() {
         var client *http.Client
 

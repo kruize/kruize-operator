@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	kruizev1alpha1 "github.com/kruize/kruize-operator/api/v1alpha1"
 	"github.com/kruize/kruize-operator/internal/constants"
@@ -40,7 +41,7 @@ type KruizeResourceGenerator struct {
 }
 
 // NewKruizeResourceGenerator creates a new generator for Kruize resources.
-func NewKruizeResourceGenerator(namespace string, autotuneImage string, autotuneUIImage string,  optimizerImage string, clusterType string, kruizeSpec *kruizev1alpha1.KruizeSpec, ctx context.Context) *KruizeResourceGenerator {
+func NewKruizeResourceGenerator(namespace string, autotuneImage string, autotuneUIImage string, optimizerImage string, clusterType string, kruizeSpec *kruizev1alpha1.KruizeSpec, ctx context.Context) *KruizeResourceGenerator {
 	// If no image is provided from the CR, use a sensible default.
 	// The default can be configured via environment variables:
 	// - DEFAULT_AUTOTUNE_IMAGE: Override the default Autotune image
@@ -85,14 +86,14 @@ func (g *KruizeResourceGenerator) parseResourceQuantity(value, defaultValue stri
 	if err == nil {
 		return quantity
 	}
-	
+
 	// If user value is invalid, log a warning and fall back to the default value
 	logger := log.FromContext(g.Ctx)
 	logger.Info("Invalid resource quantity specified, falling back to default",
 		"provided", value,
 		"default", defaultValue,
 		"error", err.Error())
-	
+
 	// The default values are hardcoded constants, so MustParse is safe here
 	return resource.MustParse(defaultValue)
 }
@@ -101,7 +102,7 @@ func (g *KruizeResourceGenerator) parseResourceQuantity(value, defaultValue stri
 // For minikube/kind, defaults are disabled unless explicitly specified in the CR
 func (g *KruizeResourceGenerator) getDBResources() corev1.ResourceRequirements {
 	// For minikube/kind, only apply resources if explicitly specified in the CR
-	if (g.ClusterType == constants.ClusterTypeMinikube || g.ClusterType == constants.ClusterTypeKind) {
+	if g.ClusterType == constants.ClusterTypeMinikube || g.ClusterType == constants.ClusterTypeKind {
 		if g.KruizeSpec == nil || g.KruizeSpec.KruizeDB == nil || g.KruizeSpec.KruizeDB.Resources == nil {
 			// Return empty resource requirements for minikube/kind when not specified
 			return corev1.ResourceRequirements{}
@@ -109,7 +110,7 @@ func (g *KruizeResourceGenerator) getDBResources() corev1.ResourceRequirements {
 		// For minikube/kind with explicit resources, use only what's specified (no defaults)
 		res := g.KruizeSpec.KruizeDB.Resources
 		requirements := corev1.ResourceRequirements{}
-		
+
 		if res.Requests != nil {
 			if res.Requests.CPU != "" || res.Requests.Memory != "" {
 				requirements.Requests = corev1.ResourceList{}
@@ -169,7 +170,7 @@ func (g *KruizeResourceGenerator) getDBResources() corev1.ResourceRequirements {
 // For minikube/kind, defaults are disabled unless explicitly specified in the CR
 func (g *KruizeResourceGenerator) getKruizeResources() corev1.ResourceRequirements {
 	// For minikube/kind, only apply resources if explicitly specified in the CR
-	if (g.ClusterType == constants.ClusterTypeMinikube || g.ClusterType == constants.ClusterTypeKind) {
+	if g.ClusterType == constants.ClusterTypeMinikube || g.ClusterType == constants.ClusterTypeKind {
 		if g.KruizeSpec == nil || g.KruizeSpec.Kruize == nil || g.KruizeSpec.Kruize.Resources == nil {
 			// Return empty resource requirements for minikube/kind when not specified
 			return corev1.ResourceRequirements{}
@@ -177,7 +178,7 @@ func (g *KruizeResourceGenerator) getKruizeResources() corev1.ResourceRequiremen
 		// For minikube/kind with explicit resources, use only what's specified (no defaults)
 		res := g.KruizeSpec.Kruize.Resources
 		requirements := corev1.ResourceRequirements{}
-		
+
 		if res.Requests != nil {
 			if res.Requests.CPU != "" || res.Requests.Memory != "" {
 				requirements.Requests = corev1.ResourceList{}
@@ -348,7 +349,7 @@ func (g *KruizeResourceGenerator) getDBVolumesKubernetes() []corev1.Volume {
 // ensurePVAndPVCStorageConsistency validates and logs if PVC storage size is greater than PV storage size.
 func ensurePVAndPVCStorageConsistency(pvStorageSize, pvcStorageSize string, ctx context.Context) (string, string, error) {
 	logger := log.FromContext(ctx)
-	
+
 	pvQty, err := resource.ParseQuantity(pvStorageSize)
 	if err != nil {
 		return pvStorageSize, pvcStorageSize, fmt.Errorf("failed to parse PV storage size %q: %w", pvStorageSize, err)
@@ -1080,9 +1081,122 @@ func (g *KruizeResourceGenerator) getDefaultDatasourceForOptimizer() string {
 	}
 }
 
+// getOptimizerConfigDefaults returns default OptimizerConfig values
+func (g *KruizeResourceGenerator) getOptimizerConfigDefaults() *kruizev1alpha1.OptimizerConfig {
+	defaultTargetLabelLimit := int32(1)
+	return &kruizev1alpha1.OptimizerConfig{
+		KruizeURL:                 "http://kruize:8080",
+		StateRefreshInterval:      "60m",
+		BulkSchedulerInterval:     "15m",
+		BulkSchedulerStartupDelay: "1m",
+		BulkMeasurementDuration:   "15min",
+		WebhookURL:                "http://kruize-optimizer:8080/webhook",
+		TargetLabelLimit:          &defaultTargetLabelLimit,
+		TargetLabels: map[string]string{
+			"kruize/autotune": "enabled",
+		},
+		DefaultDatasource:      g.getDefaultDatasourceForOptimizer(),
+		DefaultMetadataProfile: "cluster-metadata-local-monitoring",
+		DefaultMetricProfile:   "resource-optimization-local-monitoring",
+	}
+}
+
+// getResolvedOptimizerConfig returns the resolved optimizer configuration
+// by merging defaults with user-provided values from the CR spec
+func (g *KruizeResourceGenerator) getResolvedOptimizerConfig() *kruizev1alpha1.OptimizerConfig {
+	// Start with defaults
+	config := g.getOptimizerConfigDefaults()
+
+	// If no optimizer config is provided in the CR spec, return defaults
+	if g.KruizeSpec == nil || g.KruizeSpec.Optimizer == nil {
+		return config
+	}
+
+	// Overlay user-provided values
+	userConfig := g.KruizeSpec.Optimizer
+
+	if userConfig.KruizeURL != "" {
+		config.KruizeURL = userConfig.KruizeURL
+	}
+	if userConfig.StateRefreshInterval != "" {
+		config.StateRefreshInterval = userConfig.StateRefreshInterval
+	}
+	if userConfig.BulkSchedulerInterval != "" {
+		config.BulkSchedulerInterval = userConfig.BulkSchedulerInterval
+	}
+	if userConfig.BulkSchedulerStartupDelay != "" {
+		config.BulkSchedulerStartupDelay = userConfig.BulkSchedulerStartupDelay
+	}
+	if userConfig.BulkMeasurementDuration != "" {
+		config.BulkMeasurementDuration = userConfig.BulkMeasurementDuration
+	}
+	if userConfig.WebhookURL != "" {
+		config.WebhookURL = userConfig.WebhookURL
+	}
+	if userConfig.TargetLabelLimit != nil {
+		config.TargetLabelLimit = userConfig.TargetLabelLimit
+	}
+	if userConfig.TargetLabels != nil && len(userConfig.TargetLabels) > 0 {
+		config.TargetLabels = userConfig.TargetLabels
+	}
+	if userConfig.DefaultDatasource != "" {
+		config.DefaultDatasource = userConfig.DefaultDatasource
+	}
+	if userConfig.DefaultMetadataProfile != "" {
+		config.DefaultMetadataProfile = userConfig.DefaultMetadataProfile
+	}
+	if userConfig.DefaultMetricProfile != "" {
+		config.DefaultMetricProfile = userConfig.DefaultMetricProfile
+	}
+
+	return config
+}
+
+// buildOptimizerEnvVars converts OptimizerConfig to environment variables
+func (g *KruizeResourceGenerator) buildOptimizerEnvVars(config *kruizev1alpha1.OptimizerConfig) []corev1.EnvVar {
+	// Convert TargetLabels map to JSON string
+	targetLabelsJSON := `{"kruize/autotune": "enabled"}` // default fallback
+	if config.TargetLabels != nil && len(config.TargetLabels) > 0 {
+		if jsonBytes, err := json.Marshal(config.TargetLabels); err == nil {
+			targetLabelsJSON = string(jsonBytes)
+		} else {
+			// Log error and use default
+			logger := log.FromContext(g.Ctx)
+			logger.Info("Failed to marshal target labels, using default",
+				"error", err.Error())
+		}
+	}
+
+	// Convert TargetLabelLimit to string
+	targetLabelLimitStr := "1" // default
+	if config.TargetLabelLimit != nil {
+		targetLabelLimitStr = fmt.Sprintf("%d", *config.TargetLabelLimit)
+	}
+
+	return []corev1.EnvVar{
+		{Name: "KRUIZE_URL", Value: config.KruizeURL},
+		{Name: "KRUIZE_STATE_REFRESH_INTERVAL", Value: config.StateRefreshInterval},
+		{Name: "KRUIZE_BULK_SCHEDULER_INTERVAL", Value: config.BulkSchedulerInterval},
+		{Name: "KRUIZE_BULK_SCHEDULER_STARTUP_DELAY", Value: config.BulkSchedulerStartupDelay},
+		{Name: "KRUIZE_BULK_MEASUREMENT_DURATION", Value: config.BulkMeasurementDuration},
+		{Name: "KRUIZE_WEBHOOK_URL", Value: config.WebhookURL},
+		{Name: "KRUIZE_TARGET_LABEL_LIMIT", Value: targetLabelLimitStr},
+		{Name: "KRUIZE_TARGET_LABELS", Value: targetLabelsJSON},
+		{Name: "KRUIZE_DEFAULT_DATASOURCE", Value: config.DefaultDatasource},
+		{Name: "KRUIZE_DEFAULT_METADATA_PROFILE", Value: config.DefaultMetadataProfile},
+		{Name: "KRUIZE_DEFAULT_METRIC_PROFILE", Value: config.DefaultMetricProfile},
+	}
+}
+
 // kruizeOptimizerDeployment generates the Deployment for the Kruize Optimizer.
 func (g *KruizeResourceGenerator) kruizeOptimizerDeployment() *appsv1.Deployment {
 	replicas := int32(1)
+
+	// Get resolved optimizer configuration (defaults + user overrides)
+	resolvedConfig := g.getResolvedOptimizerConfig()
+
+	// Build environment variables from resolved config
+	envVars := g.buildOptimizerEnvVars(resolvedConfig)
 
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -1135,19 +1249,7 @@ func (g *KruizeResourceGenerator) kruizeOptimizerDeployment() *appsv1.Deployment
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: 8080},
 							},
-							Env: []corev1.EnvVar{
-								{Name: "KRUIZE_URL", Value: "http://kruize:8080"},
-								{Name: "KRUIZE_STATE_REFRESH_INTERVAL", Value: "60m"},
-								{Name: "KRUIZE_BULK_SCHEDULER_INTERVAL", Value: "15m"},
-								{Name: "KRUIZE_BULK_SCHEDULER_STARTUP_DELAY", Value: "1m"},
-								{Name: "KRUIZE_BULK_MEASUREMENT_DURATION", Value: "15min"},
-								{Name: "KRUIZE_WEBHOOK_URL", Value: "http://kruize-optimizer:8080/webhook"},
-								{Name: "KRUIZE_TARGET_LABEL_LIMIT", Value: "1"},
-								{Name: "KRUIZE_TARGET_LABELS", Value: `{"kruize/autotune": "enabled"}`},
-								{Name: "KRUIZE_DEFAULT_DATASOURCE", Value: g.getDefaultDatasourceForOptimizer()},
-								{Name: "KRUIZE_DEFAULT_METADATA_PROFILE", Value: "cluster-metadata-local-monitoring"},
-								{Name: "KRUIZE_DEFAULT_METRIC_PROFILE", Value: "resource-optimization-local-monitoring"},
-							},
+							Env: envVars,
 						},
 					},
 				},
@@ -1185,7 +1287,7 @@ func (g *KruizeResourceGenerator) kruizeOptimizerService() *corev1.Service {
 
 func (g *KruizeResourceGenerator) kruizeUINginxDeployment() *appsv1.Deployment {
 	replicas := int32(1)
-	
+
 	// Build pod security context based on cluster type
 	podSecurityContext := &corev1.PodSecurityContext{
 		RunAsNonRoot: boolPtr(true),
@@ -1193,13 +1295,13 @@ func (g *KruizeResourceGenerator) kruizeUINginxDeployment() *appsv1.Deployment {
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
 	}
-	
+
 	// Only set RunAsUser for non-OpenShift clusters
 	// OpenShift SCC will reject hardcoded UIDs and assign its own
 	if g.ClusterType != constants.ClusterTypeOpenShift {
 		podSecurityContext.RunAsUser = int64Ptr(101)
 	}
-	
+
 	return &appsv1.Deployment{
 		// The TypeMeta tells the client which kind of object this is.
 		TypeMeta: metav1.TypeMeta{

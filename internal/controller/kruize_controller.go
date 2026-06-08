@@ -25,12 +25,15 @@ import (
 	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/apimachinery/pkg/types"
 
 	// runtime for finding directorys
 	DirRuntime "runtime"
@@ -124,27 +127,170 @@ func (r *KruizeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	fmt.Println("kruize object base: ", kruize.Spec)
 
-	// Call your deployment function with proper error handling
+	// Validate cluster type early, before adding finalizer
+	// This ensures invalid configurations are rejected immediately
+	if !common.IsBeingDeleted(kruize) {
+		cluster_type := kruize.Spec.Cluster_type
+		if !constants.IsValidClusterType(cluster_type) {
+			err := fmt.Errorf("unsupported cluster type: %s. Supported types are: %s",
+				cluster_type, strings.Join(constants.SupportedClusterTypes, ", "))
+			logger.Error(err, "Invalid cluster type specified")
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Handle finalizer lifecycle using the common utility
+	needsRequeue, err := common.HandleFinalizer(ctx, r.Client, kruize, kruizev1alpha1.KruizeFinalizer,
+		func(ctx context.Context) error {
+			return r.finalizeKruize(ctx, kruize)
+		})
+	
+	if err != nil {
+		logger.Error(err, "Failed to handle finalizer")
+		return ctrl.Result{}, err
+	}
+	
+	if needsRequeue {
+		// Finalizer was just added, requeue to ensure it's persisted
+		logger.Info("Finalizer added, requeuing")
+		return ctrl.Result{Requeue: true}, nil
+	}
+	
+	// If object is being deleted, HandleFinalizer has already handled it
+	if common.IsBeingDeleted(kruize) {
+		return ctrl.Result{}, nil
+	}
+
+	// Deploy Kruize components
 	err = r.deployKruize(ctx, kruize)
 	if err != nil {
 		logger.Error(err, "Failed to deploy Kruize")
-		return ctrl.Result{RequeueAfter: time.Minute}, err
-	}
-
-	fmt.Println("Deployment initiated, waiting for pods to be ready")
-
-	var targetNamespace = kruize.Spec.Namespace
-
-	// Wait for Kruize pods to be ready
-	err = r.waitForKruizePods(ctx, targetNamespace, 5*time.Minute)
-	if err != nil {
-		logger.Error(err, "Kruize pods not ready yet")
+		r.updateStatus(ctx, kruize, "Progressing", "Failed", fmt.Sprintf("Deployment failed: %v", err))
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, err
 	}
 
-	logger.Info("All Kruize pods are ready!", "namespace", targetNamespace)
-	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
-}
+	var targetNamespace = kruize.Spec.Namespace
+
+	// Check if all deployments are ready (non-blocking)
+	allReady, notReadyDeployments, err := r.checkAllDeploymentsReady(ctx, targetNamespace)
+	if err != nil {
+		logger.Error(err, "Failed to check deployment status")
+		r.updateStatus(ctx, kruize, "Progressing", "Unknown", fmt.Sprintf("Failed to check status: %v", err))
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+	}
+
+	if !allReady {
+		logger.Info("Deployments not ready yet", "notReady", notReadyDeployments, "namespace", targetNamespace)
+		r.updateStatus(ctx, kruize, "Progressing", "Progressing",
+			fmt.Sprintf("Waiting for deployments: %v", notReadyDeployments))
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+		}
+	
+		// All deployments are ready
+		logger.Info("All Kruize deployments are ready", "namespace", targetNamespace)
+		r.updateStatus(ctx, kruize, "Ready", "Ready", "All components are running")
+		
+		// No requeue needed - event-driven reconciliation will handle changes
+		return ctrl.Result{}, nil
+	}
+	
+	// checkDeploymentReady checks if a specific deployment is ready
+	func (r *KruizeReconciler) checkDeploymentReady(ctx context.Context, name, namespace string) (bool, error) {
+		deployment := &appsv1.Deployment{}
+		err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, deployment)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				// Deployment doesn't exist yet
+				return false, nil
+			}
+			return false, err
+		}
+	
+		// Check if deployment is ready
+		// A deployment is ready when:
+		// 1. All replicas are updated
+		// 2. All replicas are available
+		// 3. No replicas are unavailable
+		if deployment.Status.UpdatedReplicas == *deployment.Spec.Replicas &&
+			deployment.Status.ReadyReplicas == *deployment.Spec.Replicas &&
+			deployment.Status.UnavailableReplicas == 0 {
+			return true, nil
+		}
+	
+		return false, nil
+	}
+	
+	// checkAllDeploymentsReady checks if all Kruize deployments are ready
+	func (r *KruizeReconciler) checkAllDeploymentsReady(ctx context.Context, namespace string) (bool, []string, error) {
+		logger := log.FromContext(ctx)
+	
+		// Skip deployment checking in test mode
+		if r.isTestMode() {
+			logger.Info("Test mode detected, skipping deployment readiness check", "namespace", namespace)
+			return true, nil, nil
+		}
+	
+		// List of required deployments
+		requiredDeployments := []string{"kruize", "kruize-ui-nginx", "kruize-db", "kruize-optimizer"}
+		var notReadyDeployments []string
+	
+		for _, deploymentName := range requiredDeployments {
+			ready, err := r.checkDeploymentReady(ctx, deploymentName, namespace)
+			if err != nil {
+				logger.Error(err, "Failed to check deployment", "deployment", deploymentName)
+				return false, notReadyDeployments, err
+			}
+			if !ready {
+				notReadyDeployments = append(notReadyDeployments, deploymentName)
+			}
+		}
+	
+		allReady := len(notReadyDeployments) == 0
+		return allReady, notReadyDeployments, nil
+	}
+	
+	// updateStatus updates the Kruize CR status with conditions
+	func (r *KruizeReconciler) updateStatus(ctx context.Context, kruize *kruizev1alpha1.Kruize,
+		phase, conditionType, message string) {
+		logger := log.FromContext(ctx)
+	
+		// Update phase
+		kruize.Status.Phase = phase
+	
+		// Determine condition status based on phase
+		var conditionStatus v1.ConditionStatus
+		var reason string
+	
+		switch phase {
+		case "Ready":
+			conditionStatus = v1.ConditionTrue
+			reason = "AllComponentsReady"
+		case "Progressing":
+			conditionStatus = v1.ConditionFalse
+			reason = "ComponentsNotReady"
+		case "Failed":
+			conditionStatus = v1.ConditionFalse
+			reason = "DeploymentFailed"
+		default:
+			conditionStatus = v1.ConditionUnknown
+			reason = "Unknown"
+		}
+	
+		// Set the Available condition
+		meta.SetStatusCondition(&kruize.Status.Conditions, v1.Condition{
+			Type:               "Available",
+			Status:             conditionStatus,
+			ObservedGeneration: kruize.Generation,
+			LastTransitionTime: v1.Now(),
+			Reason:             reason,
+			Message:            message,
+		})
+	
+		// Update status
+		if err := r.Status().Update(ctx, kruize); err != nil {
+			logger.Error(err, "Failed to update Kruize status")
+		}
+	}
 
 // isTestMode checks if the controller is running in test mode
 func (r *KruizeReconciler) isTestMode() bool {
@@ -453,6 +599,10 @@ func (r *KruizeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	fmt.Println("Setting up the controller with the Manager")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kruizev1alpha1.Kruize{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.PersistentVolumeClaim{}).
 		Complete(r)
 }
 

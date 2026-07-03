@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.5)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.5)
-VERSION ?= 0.0.6
+VERSION ?= 0.0.7
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -48,11 +48,11 @@ endif
 
 # Set the Operator SDK version to use. By default, what is installed on the system is used.
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
-OPERATOR_SDK_VERSION ?= v1.37.0
+OPERATOR_SDK_VERSION ?= v1.42.3
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST_K8S_VERSION = 1.31.0
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -217,7 +217,16 @@ deploy-kind: ## Deploy operator to Kind cluster in monitoring namespace.
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion. Use OVERLAY=openshift or OVERLAY=local (default: openshift).
-	$(KUSTOMIZE) build config/overlays/${OVERLAY} | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+	@echo "Deleting Kruize CR instances (if any) before undeploying operator..."
+	@if [ "${OVERLAY}" = "local" ]; then \
+		NAMESPACE="monitoring"; \
+	else \
+		NAMESPACE="openshift-tuning"; \
+	fi; \
+	echo "Deleting from namespace: $$NAMESPACE"; \
+	$(KUBECTL) delete kruizes.kruize.io --all -n $$NAMESPACE --ignore-not-found=true --timeout=60s || true
+	@echo "Undeploying operator resources..."
+	- $(KUSTOMIZE) build config/overlays/${OVERLAY} | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: undeploy-openshift
 undeploy-openshift: ## Undeploy controller from OpenShift cluster in openshift-tuning namespace.
@@ -247,8 +256,8 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.3.0
-CONTROLLER_TOOLS_VERSION ?= v0.14.0
-ENVTEST_VERSION ?= release-0.17
+CONTROLLER_TOOLS_VERSION ?= v0.17.1
+ENVTEST_VERSION ?= release-0.19
 GOLANGCI_LINT_VERSION ?= v1.57.2
 
 .PHONY: kustomize
@@ -276,13 +285,19 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 # $2 - package url which can be installed
 # $3 - specific version of package
 define go-install-tool
-@[ -f $(1) ] || { \
-set -e; \
-package=$(2)@$(3) ;\
-echo "Downloading $${package}" ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
-mv "$$(echo "$(1)" | sed "s/-$(3)$$//")" $(1) ;\
-}
+@if [ -f "$(1)" ]; then \
+        if ! "$(1)" --version >/dev/null 2>&1; then \
+                echo "Existing binary $(1) is not executable on this platform, re-downloading.." ;\
+                rm -f "$(1)" ;\
+        fi ;\
+fi ;\
+if [ ! -f "$(1)" ]; then \
+        set -e; \
+        package=$(2)@$(3) ;\
+        echo "Downloading $${package}" ;\
+        GOBIN=$(LOCALBIN) go install $${package} ;\
+        mv "$$(echo "$(1)" | sed "s/-$(3)$$//")" "$(1)" ;\
+fi
 endef
 
 # Check if operator-sdk exists system-wide first, otherwise use local bin
@@ -301,7 +316,7 @@ operator-sdk: ## Download operator-sdk locally if necessary.
 			OS=$$(uname -s | tr '[:upper:]' '[:lower:]') && ARCH=$$(uname -m) ;\
 			case $$ARCH in \
 				x86_64) ARCH=amd64 ;; \
-				aarch64) ARCH=arm64 ;; \
+				aarch64|arm64) ARCH=arm64 ;; \
 			esac ;\
 			curl -sSLo $(OPERATOR_SDK) https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$${OS}_$${ARCH} ;\
 			chmod +x $(OPERATOR_SDK) ;\

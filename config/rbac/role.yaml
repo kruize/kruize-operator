@@ -8,6 +8,10 @@ rules:
   - ""
   resources:
   - configmaps
+  - persistentvolumeclaims
+  - pods
+  - serviceaccounts
+  - services
   verbs:
   - create
   - get
@@ -17,6 +21,8 @@ rules:
   - ""
   resources:
   - endpoints
+  - namespaces
+  - nodes
   verbs:
   - get
   - list
@@ -31,43 +37,10 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - namespaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumeclaims
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - persistentvolumes
   verbs:
   - create
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - create
+  - delete
   - get
   - list
   - watch
@@ -78,24 +51,6 @@ rules:
   verbs:
   - create
   - get
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - create
-  - get
-  - list
-  - watch
 - apiGroups:
   - apiextensions.k8s.io
   resources:
@@ -108,23 +63,7 @@ rules:
   - apps
   resources:
   - daemonsets
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apps
-  resources:
   - deployments
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-- apiGroups:
-  - apps
-  resources:
   - statefulsets
   verbs:
   - create
@@ -147,27 +86,7 @@ rules:
   - autoscaling.k8s.io
   resources:
   - verticalpodautoscalercheckpoints
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - autoscaling.k8s.io
-  resources:
   - verticalpodautoscalers
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - autoscaling.k8s.io
-  resources:
   - verticalpodautoscalers/status
   verbs:
   - create
@@ -194,6 +113,7 @@ rules:
   - list
 - apiGroups:
   - extensions
+  - networking.k8s.io
   resources:
   - ingresses
   verbs:
@@ -215,6 +135,8 @@ rules:
   verbs:
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - kruize.io
@@ -250,13 +172,6 @@ rules:
   - monitoring.coreos.com
   resources:
   - alertmanagers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
   - prometheuses
   verbs:
   - get
@@ -284,14 +199,6 @@ rules:
 - apiGroups:
   - networking.k8s.io
   resources:
-  - ingresses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
   - networkpolicies
   verbs:
   - create
@@ -302,17 +209,10 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - clusterroles
   verbs:
   - create
+  - delete
   - get
   - list
   - watch
@@ -353,6 +253,7 @@ rules:
   - storageclasses
   verbs:
   - create
+  - delete
   - get
   - list
   - watch

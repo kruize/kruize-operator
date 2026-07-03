@@ -144,6 +144,47 @@ go test ./internal/controller/... -v -ginkgo.p
 - Service types (ClusterIP, NodePort)
 - Port configurations
 
+### 5. Finalizer Lifecycle Tests
+
+**Purpose**: Verify proper finalizer management and resource cleanup
+
+**Tests**:
+- Finalizer addition during CR creation
+- Finalizer idempotency (no duplicates)
+- Prevention of immediate deletion when finalizer present
+- Finalizer removal after successful cleanup
+- Cluster-scoped resource cleanup (OpenShift)
+- Cluster-scoped resource cleanup (Kubernetes)
+- Error handling during cleanup
+- Cluster type validation before finalizer addition
+- Full lifecycle for OpenShift cluster type
+- Full lifecycle for Minikube cluster type
+- Full lifecycle for Kind cluster type
+
+**Finalizer Timeout Tests**:
+- Default timeout configuration (30 seconds)
+- Custom timeout from FINALIZER_TIMEOUT_SECONDS environment variable
+- Fallback to default on invalid environment variable values
+- Timeout detection for slow operations
+- Fast operations complete within timeout
+
+### 6. Test Mode Behavior Tests
+
+**Purpose**: Verify test mode functionality for faster test execution
+
+**Tests**:
+- Test mode detection via environment variable
+- Pod readiness check bypass in test mode
+
+### 7. Metrics Authentication Tests
+
+**Purpose**: Verify metrics endpoint security
+
+**Tests**:
+- Unauthorized request rejection
+- Invalid token validation
+- Metrics server availability
+
 ## Resources
 
 - [Ginkgo Documentation](https://onsi.github.io/ginkgo/)

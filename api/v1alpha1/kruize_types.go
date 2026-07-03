@@ -251,6 +251,10 @@ type KruizeList struct {
 	Items           []Kruize `json:"items"`
 }
 
+const (
+    KruizeFinalizer = "kruize.io/finalizer"
+)
+
 func init() {
 	SchemeBuilder.Register(&Kruize{}, &KruizeList{})
 }

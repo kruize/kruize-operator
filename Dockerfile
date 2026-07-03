@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM registry.access.redhat.com/ubi10/go-toolset:1.25.9 AS builder
+FROM registry.access.redhat.com/ubi10/go-toolset:1.26.4 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -25,7 +25,7 @@ COPY internal/constants/ internal/constants/
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o /tmp/manager cmd/main.go
 
-FROM registry.access.redhat.com/ubi10/ubi-minimal:10.1-1778058333
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1782798957
 WORKDIR /app
 
 COPY --from=builder /tmp/manager .

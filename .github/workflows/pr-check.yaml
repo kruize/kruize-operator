@@ -8,7 +8,7 @@ on:
     types: [opened, synchronize, reopened]
 
 env:
-  GO_VERSION: '1.24.7'
+  GO_VERSION: '1.25.9'
   OPERATOR_IMAGE: quay.io/kruize/kruize-operator:pr-${{ github.event.pull_request.number }}
   NAMESPACE: monitoring
 

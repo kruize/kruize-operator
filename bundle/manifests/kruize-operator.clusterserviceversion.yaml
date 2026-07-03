@@ -15,7 +15,7 @@ metadata:
             "name": "kruize-sample"
           },
           "spec": {
-            "autotune_image": "quay.io/kruize/autotune_operator:0.10",
+            "autotune_image": "quay.io/kruize/autotune_operator:0.11",
             "autotune_ui_image": "quay.io/kruize/kruize-ui:0.1.0",
             "cluster_type": "openshift",
             "kruize": {
@@ -95,22 +95,23 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Monitoring, Developer Tools
-    containerImage: quay.io/kruize/kruize-operator:0.0.6
-    createdAt: "2026-05-11T11:14:38Z"
+    containerImage: quay.io/kruize/kruize-operator:0.0.7
+    createdAt: "2026-07-03T11:55:58Z"
     description: Resource optimization tool for Kubernetes workloads
-    operators.operatorframework.io/builder: operator-sdk-v1.37.0
+    operators.operatorframework.io/builder: operator-sdk-v1.42.2
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/kruize/kruize-operator
     support: Kruize Community
-  name: kruize-operator.v0.0.6
+  name: kruize-operator.v0.0.7
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - description: Kruize contains configuration options for controlling the deployment
-        of the Kruize application and its related components. A Kruize instance must
-        be created to instruct the operator to deploy the Kruize application.
+    - description: |-
+        Kruize contains configuration options for controlling the deployment of the Kruize
+        application and its related components. A Kruize instance must be created to instruct
+        the operator to deploy the Kruize application.
       displayName: Kruize
       kind: Kruize
       name: kruizes.kruize.io
@@ -233,6 +234,10 @@ spec:
           - ""
           resources:
           - configmaps
+          - persistentvolumeclaims
+          - pods
+          - serviceaccounts
+          - services
           verbs:
           - create
           - get
@@ -242,6 +247,8 @@ spec:
           - ""
           resources:
           - endpoints
+          - namespaces
+          - nodes
           verbs:
           - get
           - list
@@ -256,43 +263,10 @@ spec:
         - apiGroups:
           - ""
           resources:
-          - namespaces
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - nodes
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - persistentvolumeclaims
-          verbs:
-          - create
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
           - persistentvolumes
           verbs:
           - create
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - pods
-          verbs:
-          - create
+          - delete
           - get
           - list
           - watch
@@ -303,24 +277,6 @@ spec:
           verbs:
           - create
           - get
-        - apiGroups:
-          - ""
-          resources:
-          - serviceaccounts
-          verbs:
-          - create
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - services
-          verbs:
-          - create
-          - get
-          - list
-          - watch
         - apiGroups:
           - apiextensions.k8s.io
           resources:
@@ -333,23 +289,7 @@ spec:
           - apps
           resources:
           - daemonsets
-          verbs:
-          - create
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - apps
-          resources:
           - deployments
-          verbs:
-          - create
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - apps
-          resources:
           - statefulsets
           verbs:
           - create
@@ -372,27 +312,7 @@ spec:
           - autoscaling.k8s.io
           resources:
           - verticalpodautoscalercheckpoints
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - autoscaling.k8s.io
-          resources:
           - verticalpodautoscalers
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - autoscaling.k8s.io
-          resources:
           - verticalpodautoscalers/status
           verbs:
           - create
@@ -419,6 +339,7 @@ spec:
           - list
         - apiGroups:
           - extensions
+          - networking.k8s.io
           resources:
           - ingresses
           verbs:
@@ -440,6 +361,8 @@ spec:
           verbs:
           - get
           - list
+          - patch
+          - update
           - watch
         - apiGroups:
           - kruize.io
@@ -475,13 +398,6 @@ spec:
           - monitoring.coreos.com
           resources:
           - alertmanagers
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - monitoring.coreos.com
-          resources:
           - prometheuses
           verbs:
           - get
@@ -509,14 +425,6 @@ spec:
         - apiGroups:
           - networking.k8s.io
           resources:
-          - ingresses
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - networking.k8s.io
-          resources:
           - networkpolicies
           verbs:
           - create
@@ -527,17 +435,10 @@ spec:
           - rbac.authorization.k8s.io
           resources:
           - clusterrolebindings
-          verbs:
-          - create
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - rbac.authorization.k8s.io
-          resources:
           - clusterroles
           verbs:
           - create
+          - delete
           - get
           - list
           - watch
@@ -578,6 +479,7 @@ spec:
           - storageclasses
           verbs:
           - create
+          - delete
           - get
           - list
           - watch
@@ -621,7 +523,7 @@ spec:
                 - --metrics-bind-address=:8443
                 command:
                 - /app/manager
-                image: quay.io/kruize/kruize-operator:0.0.6
+                image: quay.io/kruize/kruize-operator:0.0.7
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -725,4 +627,4 @@ spec:
   minKubeVersion: 1.23.0
   provider:
     name: Kruize
-  version: 0.0.6
+  version: 0.0.7

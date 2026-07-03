@@ -24,23 +24,23 @@ For examples of running Kruize and the operator, see [kruize-demos](https://gith
 - [Prometheus](https://github.com/prometheus/prometheus) (for Minikube, Kind clusters)
 
 **For Building/Development:**
-- Go version v1.25.0+ (updated for security patches)
-- [operator-sdk](https://github.com/operator-framework/operator-sdk) v1.37.0+ (as specified in Makefile)
+- Go version v1.26.0+ (updated for security patches)
+- [operator-sdk](https://github.com/operator-framework/operator-sdk) v1.42.3+ (as specified in Makefile)
 - Docker version 17.03+
 
 ### Configuration
 
 **Environment Variables:**
 
-The operator supports the following environment variables for customizing default container images:
+The operator supports the following environment variables for configuration:
 
-| Variable | Description |
-|----------|-------------|
-| `DEFAULT_AUTOTUNE_IMAGE` | Override the default Kruize Autotune container image |
-| `DEFAULT_AUTOTUNE_UI_IMAGE` | Override the default Kruize UI container image |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DEFAULT_AUTOTUNE_IMAGE` | Override the default Kruize Autotune container image | Built-in default |
+| `DEFAULT_AUTOTUNE_UI_IMAGE` | Override the default Kruize UI container image | Built-in default |
+| `FINALIZER_TIMEOUT_SECONDS` | Timeout for finalizer cleanup operations (in seconds) | `30` |
 
-
-**Example Usage:**
+**Image Configuration Example:**
 ```sh
 # Use custom registry/versions
 export DEFAULT_AUTOTUNE_IMAGE="my-registry.io/kruize/autotune_operator:custom-tag"
@@ -48,6 +48,29 @@ export DEFAULT_AUTOTUNE_UI_IMAGE="my-registry.io/kruize/kruize-ui:custom-tag"
 ```
 
 These environment variables are checked once at operator startup. When the operator creates Kruize resources with empty `autotune_image` or `autotune_ui_image` fields in the CR spec, it uses these environment variable values (if set) or the built-in defaults. If the CR explicitly specifies image values, those take precedence over environment variables.
+
+**Finalizer Timeout Configuration:**
+
+The `FINALIZER_TIMEOUT_SECONDS` environment variable controls how long the operator waits for resource cleanup operations during CR deletion. This prevents the controller from hanging indefinitely due to network issues or API server problems.
+
+To configure this, set the environment variable before deploying the operator:
+
+```sh
+# Set a custom timeout of 60 seconds for finalizer operations
+export FINALIZER_TIMEOUT_SECONDS=60
+make deploy IMG=<registry>/kruize-operator:tag
+```
+
+Or add it to the operator deployment after installation by editing the deployment:
+
+```sh
+kubectl set env deployment/kruize-operator -n <namespace> FINALIZER_TIMEOUT_SECONDS=60
+```
+
+**When to adjust the timeout:**
+- Increase if you have many cluster-scoped resources that take longer to clean up
+- Increase if you experience network latency issues
+- Decrease for faster failure detection in development environments
 
 ### Deployment
 

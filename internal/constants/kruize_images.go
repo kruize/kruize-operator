@@ -33,7 +33,7 @@ const (
 // Default container image versions
 const (
 	// defaultAutotuneImageTag is the default tag for Kruize Autotune image
-	defaultAutotuneImageTag = "0.11"
+	defaultAutotuneImageTag = "0.11.1"
 	
 	// defaultUIImageTag is the default tag for Kruize UI image
 	defaultUIImageTag = "0.1.0"

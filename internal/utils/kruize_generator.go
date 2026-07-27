@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	kruizev1alpha1 "github.com/kruize/kruize-operator/api/v1alpha1"
 	"github.com/kruize/kruize-operator/internal/constants"
 	routev1 "github.com/openshift/api/route/v1"

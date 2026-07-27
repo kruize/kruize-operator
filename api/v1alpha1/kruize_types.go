@@ -314,7 +314,7 @@ type KruizeList struct {
 }
 
 const (
-    KruizeFinalizer = "kruize.io/finalizer"
+	KruizeFinalizer = "kruize.io/finalizer"
 )
 
 func init() {

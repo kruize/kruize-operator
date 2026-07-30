@@ -8,15 +8,65 @@ on:
     types: [opened, synchronize, reopened]
 
 env:
-  GO_VERSION: '1.25.9'
+  GO_VERSION: '1.26.4'  # must match toolchain directive in go.mod
+  # Must match ENVTEST_K8S_VERSION in Makefile and envtestK8sVersion in
+  # internal/controller/suite_test.go.
+  ENVTEST_K8S_VERSION: '1.31.0'
   OPERATOR_IMAGE: quay.io/kruize/kruize-operator:pr-${{ github.event.pull_request.number }}
   NAMESPACE: monitoring
 
 jobs:
+  # ── Job 1: Unit tests ────────────────────────────────────────────────────────
+  # Fast gate (~1 min). No cluster, no Docker. Runs before E2E so broken logic
+  # is caught immediately without waiting for the full cluster setup.
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download && go mod verify
+
+      - name: Install setup-envtest
+        run: make envtest
+
+      - name: Run unit tests
+        run: |
+          BIN_DIR="$(pwd)/bin"
+          KUBEBUILDER_ASSETS="$(./bin/setup-envtest-release-0.19 use ${{ env.ENVTEST_K8S_VERSION }} --bin-dir "$BIN_DIR" -p path)"
+          export KUBEBUILDER_ASSETS
+          go test ./internal/... -v -coverprofile=cover.out 2>&1 \
+            | sed -r 's/\x1b\[[0-9;]*[mGKHF]//g' \
+            | tee unit-test-output.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-pr-${{ github.event.pull_request.number }}
+          path: |
+            cover.out
+            unit-test-output.log
+          retention-days: 7
+
+  # ── Job 2: E2E tests ─────────────────────────────────────────────────────────
+  # Slow gate (~15 min). Requires Kind cluster + Docker image build. Only runs
+  # after unit tests pass so cluster time is not wasted on broken code.
   build-and-test:
     name: Build and Test Operator
     runs-on: ubuntu-latest
-    
+    needs: unit-test
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

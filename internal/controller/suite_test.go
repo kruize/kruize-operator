@@ -18,6 +18,7 @@ package controller
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -42,6 +43,10 @@ import (
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
+// envtestK8sVersion is the Kubernetes control plane version whose binaries
+// setup-envtest downloads. Must match ENVTEST_K8S_VERSION in the Makefile.
+const envtestK8sVersion = "1.31.0"
+
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
@@ -56,17 +61,42 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	By("bootstrapping test environment")
+
+	// Lookup order: KUBEBUILDER_ASSETS env var → project-local bin/k8s/ → setup-envtest system cache.
+	binaryAssetsDir := os.Getenv("KUBEBUILDER_ASSETS")
+	if binaryAssetsDir == "" {
+		pkgDir, err := os.Getwd()
+		Expect(err).NotTo(HaveOccurred(), "could not determine working directory")
+		localDir := filepath.Join(pkgDir, "..", "..", "bin", "k8s",
+			fmt.Sprintf("%s-%s-%s", envtestK8sVersion, runtime.GOOS, runtime.GOARCH))
+		if _, err := os.Stat(localDir); err == nil {
+			binaryAssetsDir = localDir
+		}
+	}
+	if binaryAssetsDir == "" {
+		systemDir, err := envtest.SetupEnvtestDefaultBinaryAssetsDirectory()
+		Expect(err).NotTo(HaveOccurred(),
+			"failed to resolve envtest binary assets directory from system cache; "+
+				"run `make test` once to download envtest binaries for Kubernetes %s, "+
+				"or set KUBEBUILDER_ASSETS to the directory containing etcd and kube-apiserver",
+			envtestK8sVersion)
+		binaryAssetsDir = filepath.Join(systemDir,
+			fmt.Sprintf("%s-%s-%s", envtestK8sVersion, runtime.GOOS, runtime.GOARCH))
+	}
+
+	// Fail fast with a clear message if the resolved directory does not exist on disk.
+	// Without this, testEnv.Start() would fail with a vague "fork/exec etcd: no such file" error.
+	_, statErr := os.Stat(binaryAssetsDir)
+	Expect(statErr).NotTo(HaveOccurred(),
+		"envtest binary assets directory not found at %s; "+
+			"run `make test` once to download envtest binaries for Kubernetes %s, "+
+			"or set KUBEBUILDER_ASSETS to the directory containing etcd and kube-apiserver",
+		binaryAssetsDir, envtestK8sVersion)
+
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
-
-		// The BinaryAssetsDirectory is only required if you want to run the tests directly
-		// without call the makefile target test. If not informed it will look for the
-		// default path defined in controller-runtime which is /usr/local/kubebuilder/.
-		// Note that you must have the required binaries setup under the bin directory to perform
-		// the tests directly. When we run make test it will be setup and used automatically.
-		BinaryAssetsDirectory: filepath.Join("..", "..", "bin", "k8s",
-			fmt.Sprintf("1.31.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
+		BinaryAssetsDirectory: binaryAssetsDir,
 	}
 
 	var err error

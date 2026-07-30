@@ -52,6 +52,7 @@ OPERATOR_SDK_VERSION ?= v1.42.3
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+# Must match the envtestK8sVersion constant in internal/controller/suite_test.go.
 ENVTEST_K8S_VERSION = 1.31.0
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)

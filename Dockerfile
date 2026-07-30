@@ -25,7 +25,7 @@ COPY internal/constants/ internal/constants/
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o /tmp/manager cmd/main.go
 
-FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1782798957
+FROM registry.access.redhat.com/ubi10/ubi-minimal:1785332777
 WORKDIR /app
 
 COPY --from=builder /tmp/manager .

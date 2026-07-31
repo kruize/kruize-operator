@@ -30,19 +30,19 @@ type KruizeSpec struct {
 
 	// Type of Kubernetes cluster (openshift, minikube, or kind)
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Cluster Type",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:select:openshift","urn:alm:descriptor:com.tectonic.ui:select:minikube","urn:alm:descriptor:com.tectonic.ui:select:kind"}
-	Cluster_type      string `json:"cluster_type"`
+	ClusterType       string `json:"cluster_type"`
 
 	// Container image for Kruize Autotune
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Autotune Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
-	Autotune_image    string `json:"autotune_image"`
+	AutotuneImage     string `json:"autotune_image"`
 
 	// Container image for Kruize UI
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Autotune UI Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
-	Autotune_ui_image string `json:"autotune_ui_image"`
+	AutotuneUIImage   string `json:"autotune_ui_image"`
 
 	// Container image for Kruize Optimizer
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Optimizer Image",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}
-	Optimizer_image   string `json:"optimizer_image,omitempty"`
+	OptimizerImage    string `json:"optimizer_image,omitempty"`
 
 	// Target namespace for Kruize deployment
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Namespace",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text"}

@@ -207,6 +207,15 @@ This requires a Kubernetes or OpenShift cluster. Recommended: Minikube, KIND, or
 **For detailed testing documentation**, see:
 - [Operator Tests Documentation](test/Operator_tests.md)
 
+## Contributing
+
+We welcome your contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for more details.
+
+Join the [Kruize Slack](http://kruizeworkspace.slack.com/) to connect with the community, ask questions, and collaborate! 
+
+or Scan the QR Code
+![Slack QR code](docs/images/kruize_slack_QR.jpeg)
+
 ## License
 
 Apache License 2.0, see [LICENSE](/LICENSE).

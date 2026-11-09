@@ -15,7 +15,7 @@ metadata:
             "name": "kruize-sample"
           },
           "spec": {
-            "autotune_image": "quay.io/kruize/autotune_operator:0.11",
+            "autotune_image": "quay.io/kruize/autotune_operator:0.12",
             "autotune_ui_image": "quay.io/kruize/kruize-ui:0.1.0",
             "cluster_type": "openshift",
             "kruize": {
@@ -95,14 +95,14 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Monitoring, Developer Tools
-    containerImage: quay.io/kruize/kruize-operator:0.0.7
-    createdAt: "2026-07-03T11:55:58Z"
+    containerImage: quay.io/kruize/kruize-operator:0.0.8
+    createdAt: "2026-11-09T10:58:16Z"
     description: Resource optimization tool for Kubernetes workloads
     operators.operatorframework.io/builder: operator-sdk-v1.42.2
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/kruize/kruize-operator
     support: Kruize Community
-  name: kruize-operator.v0.0.7
+  name: kruize-operator.v0.0.8
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -523,7 +523,7 @@ spec:
                 - --metrics-bind-address=:8443
                 command:
                 - /app/manager
-                image: quay.io/kruize/kruize-operator:0.0.7
+                image: quay.io/kruize/kruize-operator:0.0.8
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -627,4 +627,4 @@ spec:
   minKubeVersion: 1.23.0
   provider:
     name: Kruize
-  version: 0.0.7
+  version: 0.0.8

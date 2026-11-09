@@ -124,7 +124,9 @@ func (r *KruizeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	fmt.Println("kruize object base: ", kruize.Spec)
+	logger.V(1).Info("reconciling kruize object",
+		"cluster_type", kruize.Spec.Cluster_type,
+		"namespace", kruize.Spec.Namespace)
 
 	// Validate cluster type early, before adding finalizer
 	// This ensures invalid configurations are rejected immediately
@@ -167,7 +169,7 @@ func (r *KruizeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: time.Minute}, err
 	}
 
-	fmt.Println("Deployment initiated, waiting for pods to be ready")
+	logger.Info("Deployment initiated, waiting for pods to be ready")
 
 	var targetNamespace = kruize.Spec.Namespace
 
@@ -358,8 +360,7 @@ func (r *KruizeReconciler) waitForKruizePods(ctx context.Context, namespace stri
 				continue
 			}
 
-			logger.Info("Pod status check", "ready", readyPods, "total", totalPods, "namespace", namespace)
-			fmt.Printf("Pod status: %v\n", podStatus)
+			logger.V(1).Info("Pod status check", "ready", readyPods, "total", totalPods, "namespace", namespace, "status", podStatus)
 
 			// Check if we have all required pods running (kruize, kruize-ui-nginx, kruize-db, kruize-optimizer)
 			if readyPods >= 4 && totalPods >= 4 {
@@ -373,6 +374,7 @@ func (r *KruizeReconciler) waitForKruizePods(ctx context.Context, namespace stri
 }
 
 func (r *KruizeReconciler) checkKruizePodsStatus(ctx context.Context, namespace string) (int, int, map[string]string, error) {
+	logger := log.FromContext(ctx)
 	podList := &corev1.PodList{}
 	err := r.Client.List(ctx, podList, client.InNamespace(namespace))
 	if err != nil {
@@ -396,7 +398,7 @@ func (r *KruizeReconciler) checkKruizePodsStatus(ctx context.Context, namespace 
 	readyCount := 0
 	for _, pod := range kruizePods {
 		podStatus[pod.Name] = string(pod.Status.Phase)
-		fmt.Printf("Pod %s status: %s\n", pod.Name, pod.Status.Phase)
+		logger.V(1).Info("Pod phase", "pod", pod.Name, "phase", pod.Status.Phase)
 
 		// Check if pod is ready
 		if pod.Status.Phase == corev1.PodRunning {
@@ -404,7 +406,7 @@ func (r *KruizeReconciler) checkKruizePodsStatus(ctx context.Context, namespace 
 			for _, condition := range pod.Status.Conditions {
 				if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
 					readyCount++
-					fmt.Printf("Pod %s is ready\n", pod.Name)
+					logger.V(1).Info("Pod is ready", "pod", pod.Name)
 					break
 				}
 			}
@@ -571,7 +573,8 @@ func (r *KruizeReconciler) reconcileNamespacedResource(ctx context.Context, owne
 }
 
 func (r *KruizeReconciler) applyYAMLString(ctx context.Context, yamlContent string, namespace string) error {
-	fmt.Printf("Applying YAML content (size: %d bytes) to namespace: %s\n", len(yamlContent), namespace)
+	logger := log.FromContext(ctx)
+	logger.V(1).Info("Applying YAML content", "size", len(yamlContent), "namespace", namespace)
 
 	docs := strings.Split(yamlContent, "---")
 
@@ -579,7 +582,7 @@ func (r *KruizeReconciler) applyYAMLString(ctx context.Context, yamlContent stri
 	if namespace != "" {
 		err := r.ensureNamespace(ctx, namespace)
 		if err != nil {
-			fmt.Printf("Warning: failed to ensure namespace %s: %v\n", namespace, err)
+			logger.Error(err, "Warning: failed to ensure namespace", "namespace", namespace)
 		}
 	}
 
@@ -594,7 +597,7 @@ func (r *KruizeReconciler) applyYAMLString(ctx context.Context, yamlContent stri
 		dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 		_, _, err := dec.Decode([]byte(doc), nil, obj)
 		if err != nil {
-			fmt.Printf("Warning: failed to decode YAML document %d: %v\n", i, err)
+			logger.Error(err, "Warning: failed to decode YAML document", "index", i)
 			failCount++
 			continue
 		}
@@ -612,21 +615,21 @@ func (r *KruizeReconciler) applyYAMLString(ctx context.Context, yamlContent stri
 		})
 
 		if err != nil {
-			fmt.Printf("Warning: failed to apply %s/%s: %v\n", obj.GetKind(), obj.GetName(), err)
+			logger.Error(err, "Warning: failed to apply resource", "kind", obj.GetKind(), "name", obj.GetName())
 			failCount++
 		} else {
-			fmt.Printf("Successfully applied %s/%s\n", obj.GetKind(), obj.GetName())
+			logger.V(1).Info("Successfully applied resource", "kind", obj.GetKind(), "name", obj.GetName())
 			successCount++
 		}
 	}
 
-	fmt.Printf("Applied %d resources successfully, %d failed\n", successCount, failCount)
+	logger.V(1).Info("YAML apply complete", "success", successCount, "failed", failCount)
 	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *KruizeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	fmt.Println("Setting up the controller with the Manager")
+	log.Log.Info("Setting up the controller with the Manager")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kruizev1alpha1.Kruize{}).
 		Complete(r)

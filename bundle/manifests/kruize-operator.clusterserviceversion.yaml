@@ -57,7 +57,7 @@ metadata:
               ]
             },
             "namespace": "openshift-tuning",
-            "optimizer_image": "quay.io/kruize/kruize-optimizer:0.0.1",
+            "optimizer_image": "quay.io/kruize/kruize-optimizer:0.0.2",
             "persistentVolume": {
               "accessModes": [
                 "ReadWriteMany"

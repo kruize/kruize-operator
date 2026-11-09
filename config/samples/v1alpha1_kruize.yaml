@@ -72,3 +72,31 @@ spec:
       limits:
         memory: "768Mi"
         cpu: "0.7"
+
+  # Optimizer configuration
+  # All fields are optional. If not specified, defaults will be used.
+  optimizer:
+    # URL for Kruize service (default: "http://kruize:8080")
+    kruizeURL: "http://kruize:8080"
+    # Interval for refreshing Kruize state (default: "60m")
+    stateRefreshInterval: "60m"
+    # Interval for bulk scheduler (default: "15m")
+    bulkSchedulerInterval: "15m"
+    # Startup delay for bulk scheduler (default: "1m")
+    bulkSchedulerStartupDelay: "1m"
+    # Duration for bulk measurements (default: "15min")
+    bulkMeasurementDuration: "15min"
+    # Webhook URL for Kruize Optimizer (default: "http://kruize-optimizer:8080/webhook")
+    webhookURL: "http://kruize-optimizer:8080/webhook"
+    # Maximum number of target labels (default: 1)
+    targetLabelLimit: 1
+    # Target labels for filtering (default: {"kruize/autotune": "enabled"})
+    targetLabels:
+      kruize/autotune: "enabled"
+    # Default datasource name (default: computed from cluster_type)
+    # OpenShift uses "thanos-1", Minikube/KIND use "prometheus-1"
+    defaultDatasource: "prometheus-1"
+    # Default metadata profile name (default: "cluster-metadata-local-monitoring")
+    defaultMetadataProfile: "cluster-metadata-local-monitoring"
+    # Default metric profile name (default: "resource-optimization-local-monitoring")
+    defaultMetricProfile: "resource-optimization-local-monitoring"

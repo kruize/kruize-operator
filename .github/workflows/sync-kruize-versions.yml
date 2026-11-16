@@ -21,6 +21,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# Serialize runs per base branch so overlapping runs cannot both open a PR for the same updates
+concurrency:
+  group: sync-kruize-versions-${{ inputs.base_branch || 'mvp_demo' }}
+  cancel-in-progress: false
+
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
@@ -197,10 +202,14 @@ jobs:
           echo "target_autotune=$TARGET_AUTOTUNE" >> $GITHUB_OUTPUT
           echo "target_ui=$TARGET_UI" >> $GITHUB_OUTPUT
 
-          # Look for open PRs targeting the base branch that carry the same marker
-          EXISTING_PR=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&base=${BASE_BRANCH}&per_page=100" \
-            | jq -r --arg marker "$MARKER" '[.[] | select((.body // "") | contains($marker))][0].html_url // empty')
+          # Look through all open PRs targeting the base branch for one created by this workflow
+          # (bump branch prefix) that carries the same marker. gh api fails on HTTP errors,
+          # paginates, and URL-encodes the query parameters.
+          MATCHES=$(gh api --paginate -X GET "repos/${{ github.repository }}/pulls" \
+            -f state=open -f base="$BASE_BRANCH" -f per_page=100 \
+            | jq -r --arg marker "$MARKER" --arg prefix "automated/bump-kruize-versions-" \
+              '.[] | select((.head.ref | startswith($prefix)) and ((.body // "") | contains($marker))) | .html_url')
+          EXISTING_PR="${MATCHES%%$'\n'*}"
 
           if [ -n "$EXISTING_PR" ]; then
             echo "An open PR for Autotune ${TARGET_AUTOTUNE} / UI ${TARGET_UI} already exists against ${BASE_BRANCH}: $EXISTING_PR"
@@ -254,9 +263,9 @@ jobs:
           REPO="${{ github.repository }}"
           BASE_BRANCH="${{ inputs.base_branch || 'mvp_demo' }}"
           
-          # Get the SHA of the base branch
-          BASE_SHA=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/$REPO/git/ref/heads/$BASE_BRANCH" | jq -r '.object.sha')
+          # Use the exact commit that was checked out (and edited) so the new tree is built
+          # on the same base as the file contents
+          BASE_SHA=$(git rev-parse HEAD)
           
           if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "null" ]; then
             echo "Error: Failed to get base branch SHA"

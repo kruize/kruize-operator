@@ -35,6 +35,7 @@ jobs:
       - name: Checkout kruize-operator repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.base_branch || 'mvp_demo' }}
           token: ${{ steps.generate-token.outputs.token }}
           fetch-depth: 0
           persist-credentials: true
@@ -171,8 +172,48 @@ jobs:
             echo "needs_ui_update=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Update kruize_images.go and sample YAML
+      - name: Check for existing open PR with the same updates
+        id: existing-pr
         if: steps.update-check.outputs.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          BASE_BRANCH: ${{ inputs.base_branch || 'mvp_demo' }}
+          NEEDS_AUTOTUNE_UPDATE: ${{ steps.update-check.outputs.needs_autotune_update }}
+          NEEDS_UI_UPDATE: ${{ steps.update-check.outputs.needs_ui_update }}
+          FETCHED_AUTOTUNE_VERSION: ${{ steps.fetch-autotune-version.outputs.kruize_version }}
+          FETCHED_UI_VERSION: ${{ steps.fetch-ui-version.outputs.ui_version }}
+          CURRENT_AUTOTUNE_VERSION: ${{ steps.current-versions.outputs.current_autotune_version }}
+          CURRENT_UI_VERSION: ${{ steps.current-versions.outputs.current_ui_version }}
+        run: |
+          set -euo pipefail
+
+          # Versions that will be present on the base branch once the update is applied
+          TARGET_AUTOTUNE="$CURRENT_AUTOTUNE_VERSION"
+          TARGET_UI="$CURRENT_UI_VERSION"
+          [ "$NEEDS_AUTOTUNE_UPDATE" = "true" ] && TARGET_AUTOTUNE="$FETCHED_AUTOTUNE_VERSION"
+          [ "$NEEDS_UI_UPDATE" = "true" ] && TARGET_UI="$FETCHED_UI_VERSION"
+
+          MARKER="<!-- kruize-version-update: autotune=${TARGET_AUTOTUNE} ui=${TARGET_UI} -->"
+          echo "target_autotune=$TARGET_AUTOTUNE" >> $GITHUB_OUTPUT
+          echo "target_ui=$TARGET_UI" >> $GITHUB_OUTPUT
+
+          # Look for open PRs targeting the base branch that carry the same marker
+          EXISTING_PR=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&base=${BASE_BRANCH}&per_page=100" \
+            | jq -r --arg marker "$MARKER" '[.[] | select((.body // "") | contains($marker))][0].html_url // empty')
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "An open PR for Autotune ${TARGET_AUTOTUNE} / UI ${TARGET_UI} already exists against ${BASE_BRANCH}: $EXISTING_PR"
+            echo "Skipping PR creation."
+            echo "pr_exists=true" >> $GITHUB_OUTPUT
+            echo "existing_pr_url=$EXISTING_PR" >> $GITHUB_OUTPUT
+          else
+            echo "No existing open PR found for these updates."
+            echo "pr_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update kruize_images.go and sample YAML
+        if: steps.update-check.outputs.needs_update == 'true' && steps.existing-pr.outputs.pr_exists != 'true'
         id: update-files
         run: |
           KRUIZE_VERSION="${{ steps.fetch-autotune-version.outputs.kruize_version }}"
@@ -202,7 +243,7 @@ jobs:
           echo "sample_yaml_content=$SAMPLE_YAML_CONTENT" >> $GITHUB_OUTPUT
 
       - name: Create branch and commit using GitHub API
-        if: steps.update-check.outputs.needs_update == 'true'
+        if: steps.update-check.outputs.needs_update == 'true' && steps.existing-pr.outputs.pr_exists != 'true'
         id: create-branch
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
@@ -252,7 +293,7 @@ jobs:
           echo "base_sha=$BASE_SHA" >> $GITHUB_OUTPUT
 
       - name: Commit changes using GitHub API
-        if: steps.update-check.outputs.needs_update == 'true'
+        if: steps.update-check.outputs.needs_update == 'true' && steps.existing-pr.outputs.pr_exists != 'true'
         id: commit-changes
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
@@ -355,7 +396,7 @@ jobs:
           echo "commit_sha=$NEW_COMMIT" >> $GITHUB_OUTPUT
 
       - name: Create Pull Request using GitHub API
-        if: steps.update-check.outputs.needs_update == 'true'
+        if: steps.update-check.outputs.needs_update == 'true' && steps.existing-pr.outputs.pr_exists != 'true'
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
@@ -369,10 +410,12 @@ jobs:
 
           Updates Kruize image versions from upstream repositories.
 
-          **Autotune**: ${{ steps.current-versions.outputs.current_autotune_version }} → ${{ steps.fetch-autotune-version.outputs.kruize_version }}
-          **UI**: ${{ steps.current-versions.outputs.current_ui_version }} → ${{ steps.fetch-ui-version.outputs.ui_version }}
+          **Autotune**: ${{ steps.current-versions.outputs.current_autotune_version }} → ${{ steps.existing-pr.outputs.target_autotune }}
+          **UI**: ${{ steps.current-versions.outputs.current_ui_version }} → ${{ steps.existing-pr.outputs.target_ui }}
 
-          - Images verified on quay.io ✓"
+          - Images verified on quay.io ✓
+
+          <!-- kruize-version-update: autotune=${{ steps.existing-pr.outputs.target_autotune }} ui=${{ steps.existing-pr.outputs.target_ui }} -->"
           
           # Create pull request
           PR_RESPONSE=$(curl -s -X POST -H "Authorization: token $GH_TOKEN" \
@@ -434,3 +477,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Overall" >> $GITHUB_STEP_SUMMARY
           echo "- **Any Update Needed:** ${{ steps.update-check.outputs.needs_update }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Existing PR for same updates:** ${{ steps.existing-pr.outputs.pr_exists }} ${{ steps.existing-pr.outputs.existing_pr_url }}" >> $GITHUB_STEP_SUMMARY

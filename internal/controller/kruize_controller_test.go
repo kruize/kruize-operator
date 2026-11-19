@@ -273,10 +273,10 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: "default",
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type:      clusterType,
+						ClusterType:       clusterType,
 						Namespace:         namespace,
-						Autotune_image:    constants.GetDefaultAutotuneImage(),
-						Autotune_ui_image: constants.GetDefaultUIImage(),
+						AutotuneImage:     constants.GetDefaultAutotuneImage(),
+						AutotuneUIImage:   constants.GetDefaultUIImage(),
 					},
 				}
 				Expect(k8sClient.Create(ctx, kruize)).To(Succeed())
@@ -311,10 +311,10 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: "default",
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type:      clusterType,
+						ClusterType:       clusterType,
 						Namespace:         "test",
-						Autotune_image:    constants.GetDefaultAutotuneImage(),
-						Autotune_ui_image: constants.GetDefaultUIImage(),
+						AutotuneImage:     constants.GetDefaultAutotuneImage(),
+						AutotuneUIImage:   constants.GetDefaultUIImage(),
 					},
 				}
 				Expect(k8sClient.Create(ctx, kruize)).To(Succeed())
@@ -356,10 +356,10 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: "default",
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type:      clusterType,
+						ClusterType:       clusterType,
 						Namespace:         namespace,
-						Autotune_image:    constants.GetDefaultAutotuneImage(),
-						Autotune_ui_image: constants.GetDefaultUIImage(),
+						AutotuneImage:     constants.GetDefaultAutotuneImage(),
+						AutotuneUIImage:   constants.GetDefaultUIImage(),
 					},
 				}
 				Expect(k8sClient.Create(ctx, kruize)).To(Succeed())
@@ -396,10 +396,10 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: "default",
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type:      clusterType,
+						ClusterType:       clusterType,
 						Namespace:         testNamespace,
-						Autotune_image:    constants.GetDefaultAutotuneImage(),
-						Autotune_ui_image: constants.GetDefaultUIImage(),
+						AutotuneImage:     constants.GetDefaultAutotuneImage(),
+						AutotuneUIImage:   constants.GetDefaultUIImage(),
 					},
 				}
 				Expect(k8sClient.Create(ctx, kruize)).To(Succeed())
@@ -1567,7 +1567,7 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: kruizeNamespace,
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: constants.ClusterTypeOpenShift,
+						ClusterType: constants.ClusterTypeOpenShift,
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -1601,7 +1601,7 @@ var _ = Describe("Kruize Controller", func() {
 						Finalizers: []string{kruizev1alpha1.KruizeFinalizer},
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: constants.ClusterTypeOpenShift,
+						ClusterType: constants.ClusterTypeOpenShift,
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -1634,7 +1634,7 @@ var _ = Describe("Kruize Controller", func() {
 						Finalizers: []string{kruizev1alpha1.KruizeFinalizer},
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: constants.ClusterTypeOpenShift,
+						ClusterType: constants.ClusterTypeOpenShift,
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -1664,7 +1664,7 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: kruizeNamespace,
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: constants.ClusterTypeOpenShift,
+						ClusterType: constants.ClusterTypeOpenShift,
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -1719,7 +1719,7 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: kruizeNamespace,
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: constants.ClusterTypeOpenShift,
+						ClusterType: constants.ClusterTypeOpenShift,
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -1772,7 +1772,7 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: kruizeNamespace,
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: constants.ClusterTypeMinikube,
+						ClusterType: constants.ClusterTypeMinikube,
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -1827,7 +1827,7 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: kruizeNamespace,
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: "invalid-cluster",
+						ClusterType: "invalid-cluster",
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -1856,7 +1856,7 @@ var _ = Describe("Kruize Controller", func() {
 						Namespace: kruizeNamespace,
 					},
 					Spec: kruizev1alpha1.KruizeSpec{
-						Cluster_type: constants.ClusterTypeKind,
+						ClusterType: constants.ClusterTypeKind,
 						Namespace:    kruizeNamespace,
 					},
 				}
@@ -2053,7 +2053,7 @@ func testFinalizerForClusterType(clusterType, name, namespace string, reconciler
 			Namespace: namespace,
 		},
 		Spec: kruizev1alpha1.KruizeSpec{
-			Cluster_type: clusterType,
+			ClusterType: clusterType,
 			Namespace:    namespace,
 		},
 	}

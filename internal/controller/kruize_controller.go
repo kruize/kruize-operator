@@ -129,7 +129,7 @@ func (r *KruizeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Validate cluster type early, before adding finalizer
 	// This ensures invalid configurations are rejected immediately
 	if !common.IsBeingDeleted(kruize) {
-		cluster_type := kruize.Spec.Cluster_type
+		cluster_type := kruize.Spec.ClusterType
 		if !constants.IsValidClusterType(cluster_type) {
 			err := fmt.Errorf("unsupported cluster type: %s. Supported types are: %s",
 				cluster_type, strings.Join(constants.SupportedClusterTypes, ", "))
@@ -189,10 +189,10 @@ func (r *KruizeReconciler) finalizeKruize(ctx context.Context, kruize *kruizev1a
 	logger.Info("Starting Kruize finalization",
 		"namespace", kruize.Spec.Namespace,
 		"name", kruize.Name,
-		"clusterType", kruize.Spec.Cluster_type)
+		"clusterType", kruize.Spec.ClusterType)
 
 	// Get the cluster type to determine which resources to clean up
-	clusterType := kruize.Spec.Cluster_type
+	clusterType := kruize.Spec.ClusterType
 	if !constants.IsValidClusterType(clusterType) {
 		logger.Info("Invalid cluster type, defaulting to OpenShift",
 			"providedType", clusterType,
@@ -203,9 +203,9 @@ func (r *KruizeReconciler) finalizeKruize(ctx context.Context, kruize *kruizev1a
 	// Create a generator to get the resource names
 	k8sObjectGenerator := utils.NewKruizeResourceGenerator(
 		kruize.Spec.Namespace,
-		kruize.Spec.Autotune_image,
-		kruize.Spec.Autotune_ui_image,
-		kruize.Spec.Optimizer_image,
+		kruize.Spec.AutotuneImage,
+		kruize.Spec.AutotuneUIImage,
+		kruize.Spec.OptimizerImage,
 		clusterType,
 		&kruize.Spec,
 		ctx,
@@ -419,14 +419,14 @@ func (r *KruizeReconciler) deployKruize(ctx context.Context, kruize *kruizev1alp
 
 	// Log Kruize spec configuration
 	logger.Info("Deploying Kruize",
-		"cluster_type", kruize.Spec.Cluster_type,
+		"cluster_type", kruize.Spec.ClusterType,
 		"namespace", kruize.Spec.Namespace,
-		"autotune_image", kruize.Spec.Autotune_image,
-		"autotune_ui_image", kruize.Spec.Autotune_ui_image,
-		"optimizer_image", kruize.Spec.Optimizer_image)
+		"autotune_image", kruize.Spec.AutotuneImage,
+		"autotune_ui_image", kruize.Spec.AutotuneUIImage,
+		"optimizer_image", kruize.Spec.OptimizerImage)
 
 	// Normalize and validate cluster type (case-insensitive)
-	cluster_type := kruize.Spec.Cluster_type
+	cluster_type := kruize.Spec.ClusterType
 	if !constants.IsValidClusterType(cluster_type) {
 		return fmt.Errorf("unsupported cluster type: %s. Supported types are: %s", cluster_type, strings.Join(constants.SupportedClusterTypes, ", "))
 	}
@@ -459,9 +459,9 @@ func (r *KruizeReconciler) deployKruizeComponents(ctx context.Context, namespace
 
 	k8sObjectGenerator := utils.NewKruizeResourceGenerator(
 		namespace,
-		kruize.Spec.Autotune_image,
-		kruize.Spec.Autotune_ui_image,
-		kruize.Spec.Optimizer_image,
+		kruize.Spec.AutotuneImage,
+		kruize.Spec.AutotuneUIImage,
+		kruize.Spec.OptimizerImage,
 		clusterType,
 		&kruize.Spec,
 		ctx,

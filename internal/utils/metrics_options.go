@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/tls"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -13,13 +14,13 @@ var (
 
 const (
 	// DefaultMetricsPort is the numeric port we use
-    DefaultMetricsPort = "8443"
+	DefaultMetricsPort = "8443"
 
-    // DefaultMetricsAddr is used by main.go (binds to everything)
-    DefaultMetricsAddr = ":" + DefaultMetricsPort
+	// DefaultMetricsAddr is used by main.go (binds to everything)
+	DefaultMetricsAddr = ":" + DefaultMetricsPort
 
-    // LocalMetricsAddr is used by tests (binds to localhost)
-    LocalMetricsAddr = "127.0.0.1:" + DefaultMetricsPort
+	// LocalMetricsAddr is used by tests (binds to localhost)
+	LocalMetricsAddr = "127.0.0.1:" + DefaultMetricsPort
 )
 
 // GetTLSOpts returns the TLS configuration slice for both Webhooks and Metrics.

@@ -151,6 +151,46 @@ spec:
               namespace:
                 description: Target namespace for Kruize deployment
                 type: string
+              optimizer:
+                description: Optimizer configuration
+                properties:
+                  bulkMeasurementDuration:
+                    description: Duration for bulk measurements
+                    type: string
+                  bulkSchedulerInterval:
+                    description: Interval for bulk scheduler
+                    type: string
+                  bulkSchedulerStartupDelay:
+                    description: Startup delay for bulk scheduler
+                    type: string
+                  defaultDatasource:
+                    description: Default datasource name
+                    type: string
+                  defaultMetadataProfile:
+                    description: Default metadata profile name
+                    type: string
+                  defaultMetricProfile:
+                    description: Default metric profile name
+                    type: string
+                  kruizeURL:
+                    description: URL for Kruize service
+                    type: string
+                  stateRefreshInterval:
+                    description: Interval for refreshing Kruize state
+                    type: string
+                  targetLabelLimit:
+                    description: Maximum number of target labels
+                    format: int32
+                    type: integer
+                  targetLabels:
+                    additionalProperties:
+                      type: string
+                    description: Target labels for filtering
+                    type: object
+                  webhookURL:
+                    description: Webhook URL for Kruize Optimizer
+                    type: string
+                type: object
               optimizer_image:
                 description: Container image for Kruize Optimizer
                 type: string

@@ -74,7 +74,7 @@ func installCadvisor() error {
 	// Apply cadvisor manifests using kustomize
 	fmt.Fprintf(GinkgoWriter, "Applying cadvisor manifests...\n")
 	cadvisorBasePath := fmt.Sprintf("%s/deploy/kubernetes/base", cadvisorDir)
-	
+
 	// Use kubectl kustomize to build and apply
 	kustomizeCmd := exec.Command("kubectl", "kustomize", cadvisorBasePath)
 	kustomizeOutput, err := Run(kustomizeCmd)
@@ -467,14 +467,13 @@ func CleanupTempFile(path string) {
 	}
 }
 
-
 // ExtractImageFromMakefile extracts the operator image from Makefile
 func ExtractImageFromMakefile() (string, error) {
 	projectDir, err := GetProjectDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get project directory: %w", err)
 	}
-	
+
 	makefilePath := filepath.Join(projectDir, "Makefile")
 	content, err := os.ReadFile(makefilePath)
 	if err != nil {
@@ -495,11 +494,11 @@ func ExtractImageFromMakefile() (string, error) {
 
 	imageTagBase := strings.TrimSpace(imageTagBaseMatch[1])
 	version := strings.TrimSpace(versionMatch[1])
-	
+
 	if imageTagBase == "" {
 		return "", fmt.Errorf("IMAGE_TAG_BASE is empty in Makefile")
 	}
-	
+
 	if version == "" {
 		return "", fmt.Errorf("VERSION is empty in Makefile")
 	}

@@ -76,6 +76,20 @@ jobs:
           echo "ui_version=$UI_VERSION" >> $GITHUB_OUTPUT
           echo "Fetched Kruize UI version: $UI_VERSION"
 
+      - name: Fetch Kruize Optimizer version from main branch
+        id: fetch-optimizer-version
+        run: |
+          OPTIMIZER_VERSION=$(curl -s https://raw.githubusercontent.com/kruize/kruize-optimizer/main/pom.xml \
+            | xmllint --xpath '//*[local-name()="project"]/*[local-name()="version"]/text()' - 2>/dev/null)
+
+          if [ -z "$OPTIMIZER_VERSION" ]; then
+            echo "Failed to fetch Kruize Optimizer version from pom.xml"
+            exit 1
+          fi
+
+          echo "optimizer_version=$OPTIMIZER_VERSION" >> $GITHUB_OUTPUT
+          echo "Fetched Kruize Optimizer version: $OPTIMIZER_VERSION"
+
       - name: Check Quay.io image availability
         id: check-images
         run: |
@@ -120,29 +134,44 @@ jobs:
             echo "ui_available=false" >> $GITHUB_OUTPUT
           fi
 
+          # Check Optimizer image
+          OPTIMIZER_VERSION="${{ steps.fetch-optimizer-version.outputs.optimizer_version }}"
+          if check_quay_image "kruize/kruize-optimizer" "$OPTIMIZER_VERSION" "Optimizer"; then
+            echo "optimizer_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "optimizer_available=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Get current versions from constants
         id: current-versions
         run: |
           CURRENT_AUTOTUNE_VERSION=$(grep -oP 'defaultAutotuneImageTag = "\K[^"]+' internal/constants/kruize_images.go)
           CURRENT_UI_VERSION=$(grep -oP 'defaultUIImageTag = "\K[^"]+' internal/constants/kruize_images.go)
+          CURRENT_OPTIMIZER_VERSION=$(grep -oP 'defaultOptimizerImageTag = "\K[^"]+' internal/constants/kruize_images.go)
           
           echo "current_autotune_version=$CURRENT_AUTOTUNE_VERSION" >> $GITHUB_OUTPUT
           echo "current_ui_version=$CURRENT_UI_VERSION" >> $GITHUB_OUTPUT
+          echo "current_optimizer_version=$CURRENT_OPTIMIZER_VERSION" >> $GITHUB_OUTPUT
           echo "Current Autotune version in constants: $CURRENT_AUTOTUNE_VERSION"
           echo "Current UI version in constants: $CURRENT_UI_VERSION"
+          echo "Current Optimizer version in constants: $CURRENT_OPTIMIZER_VERSION"
 
       - name: Compare versions and determine updates needed
         id: update-check
         run: |
           KRUIZE_VERSION="${{ steps.fetch-autotune-version.outputs.kruize_version }}"
           UI_VERSION="${{ steps.fetch-ui-version.outputs.ui_version }}"
+          OPTIMIZER_VERSION="${{ steps.fetch-optimizer-version.outputs.optimizer_version }}"
           CURRENT_AUTOTUNE_VERSION="${{ steps.current-versions.outputs.current_autotune_version }}"
           CURRENT_UI_VERSION="${{ steps.current-versions.outputs.current_ui_version }}"
+          CURRENT_OPTIMIZER_VERSION="${{ steps.current-versions.outputs.current_optimizer_version }}"
           AUTOTUNE_IMAGE_AVAILABLE="${{ steps.check-images.outputs.autotune_available }}"
           UI_IMAGE_AVAILABLE="${{ steps.check-images.outputs.ui_available }}"
+          OPTIMIZER_IMAGE_AVAILABLE="${{ steps.check-images.outputs.optimizer_available }}"
           
           NEEDS_AUTOTUNE_UPDATE=false
           NEEDS_UI_UPDATE=false
+          NEEDS_OPTIMIZER_UPDATE=false
           
           # Check Autotune version
           if [ "$AUTOTUNE_IMAGE_AVAILABLE" = "true" ] && [ "$KRUIZE_VERSION" != "$CURRENT_AUTOTUNE_VERSION" ]; then
@@ -150,6 +179,13 @@ jobs:
             echo "Autotune version mismatch detected: $CURRENT_AUTOTUNE_VERSION -> $KRUIZE_VERSION"
           else
             echo "Autotune version check: No update needed or image not available"
+          fi
+
+          if [ "$OPTIMIZER_IMAGE_AVAILABLE" = "true" ] && [ "$OPTIMIZER_VERSION" != "$CURRENT_OPTIMIZER_VERSION" ]; then
+            NEEDS_OPTIMIZER_UPDATE=true
+            echo "Optimizer version mismatch detected: $CURRENT_OPTIMIZER_VERSION -> $OPTIMIZER_VERSION"
+          else
+            echo "Optimizer version check: No update needed or image not available"
           fi
           
           # Check UI version
@@ -161,14 +197,16 @@ jobs:
           fi
           
           # Determine if any update is needed
-          if [ "$NEEDS_AUTOTUNE_UPDATE" = "true" ] || [ "$NEEDS_UI_UPDATE" = "true" ]; then
+          if [ "$NEEDS_AUTOTUNE_UPDATE" = "true" ] || [ "$NEEDS_UI_UPDATE" = "true" ] || [ "$NEEDS_OPTIMIZER_UPDATE" = "true" ]; then
             echo "needs_update=true" >> $GITHUB_OUTPUT
             echo "needs_autotune_update=$NEEDS_AUTOTUNE_UPDATE" >> $GITHUB_OUTPUT
             echo "needs_ui_update=$NEEDS_UI_UPDATE" >> $GITHUB_OUTPUT
+            echo "needs_optimizer_update=$NEEDS_OPTIMIZER_UPDATE" >> $GITHUB_OUTPUT
           else
             echo "needs_update=false" >> $GITHUB_OUTPUT
             echo "needs_autotune_update=false" >> $GITHUB_OUTPUT
             echo "needs_ui_update=false" >> $GITHUB_OUTPUT
+            echo "needs_optimizer_update=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Update kruize_images.go and sample YAML
@@ -179,12 +217,20 @@ jobs:
           UI_VERSION="${{ steps.fetch-ui-version.outputs.ui_version }}"
           NEEDS_AUTOTUNE_UPDATE="${{ steps.update-check.outputs.needs_autotune_update }}"
           NEEDS_UI_UPDATE="${{ steps.update-check.outputs.needs_ui_update }}"
+          OPTIMIZER_VERSION="${{ steps.fetch-optimizer-version.outputs.optimizer_version }}"
+          NEEDS_OPTIMIZER_UPDATE="${{ steps.update-check.outputs.needs_optimizer_update }}"
           
           # Update Autotune version if needed
           if [ "$NEEDS_AUTOTUNE_UPDATE" = "true" ]; then
             sed -i "s/defaultAutotuneImageTag = \"[^\"]*\"/defaultAutotuneImageTag = \"$KRUIZE_VERSION\"/" internal/constants/kruize_images.go
             sed -i "s|autotune_image: \"quay.io/kruize/autotune_operator:[^\"]*\"|autotune_image: \"quay.io/kruize/autotune_operator:$KRUIZE_VERSION\"|" config/samples/v1alpha1_kruize.yaml
             echo "Updated Autotune version to $KRUIZE_VERSION"
+          fi
+
+          if [ "$NEEDS_OPTIMIZER_UPDATE" = "true" ]; then
+            sed -i "s/defaultOptimizerImageTag = \"[^\"]*\"/defaultOptimizerImageTag = \"$OPTIMIZER_VERSION\"/" internal/constants/kruize_images.go
+            sed -i "s|optimizer_image: \"quay.io/kruize/kruize-optimizer:[^\"]*\"|optimizer_image: \"quay.io/kruize/kruize-optimizer:$OPTIMIZER_VERSION\"|" config/samples/v1alpha1_kruize.yaml
+            echo "Updated Optimizer version to $OPTIMIZER_VERSION"
           fi
           
           # Update UI version if needed
@@ -317,9 +363,10 @@ jobs:
           GH_APP_EMAIL="${APP_ID}+${GH_APP_NAME}[bot]@users.noreply.github.com"
           
           # Create commit message with sign-off (using printf to handle newlines)
-          COMMIT_MESSAGE=$(printf "build(deps): update Kruize versions to Autotune %s and UI %s\n\nSigned-off-by: %s <%s>" \
+          COMMIT_MESSAGE=$(printf "build(deps): update Kruize versions to Autotune %s, UI %s, and Optimizer %s\n\nSigned-off-by: %s <%s>" \
             "${{ steps.fetch-autotune-version.outputs.kruize_version }}" \
             "${{ steps.fetch-ui-version.outputs.ui_version }}" \
+            "${{ steps.fetch-optimizer-version.outputs.optimizer_version }}" \
             "${GH_APP_NAME}" \
             "${GH_APP_EMAIL}")
           
@@ -371,6 +418,7 @@ jobs:
 
           **Autotune**: ${{ steps.current-versions.outputs.current_autotune_version }} → ${{ steps.fetch-autotune-version.outputs.kruize_version }}
           **UI**: ${{ steps.current-versions.outputs.current_ui_version }} → ${{ steps.fetch-ui-version.outputs.ui_version }}
+          **Optimizer**: ${{ steps.current-versions.outputs.current_optimizer_version }} → ${{ steps.fetch-optimizer-version.outputs.optimizer_version }}
 
           - Images verified on quay.io ✓"
           
@@ -431,6 +479,12 @@ jobs:
           echo "- **Current Version (constants):** ${{ steps.current-versions.outputs.current_ui_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image Available:** ${{ steps.check-images.outputs.ui_available }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Update Needed:** ${{ steps.update-check.outputs.needs_ui_update }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Optimizer" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version (pom.xml):** ${{ steps.fetch-optimizer-version.outputs.optimizer_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Current Version (constants):** ${{ steps.current-versions.outputs.current_optimizer_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Available:** ${{ steps.check-images.outputs.optimizer_available }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Update Needed:** ${{ steps.update-check.outputs.needs_optimizer_update }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Overall" >> $GITHUB_STEP_SUMMARY
           echo "- **Any Update Needed:** ${{ steps.update-check.outputs.needs_update }}" >> $GITHUB_STEP_SUMMARY

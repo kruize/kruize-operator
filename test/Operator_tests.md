@@ -42,7 +42,7 @@ We use [Ginkgo](https://onsi.github.io/ginkgo/) (BDD-style testing framework) an
 
 **Purpose**: Validate complete operator deployment and Kruize functionality on real Kubernetes clusters
 
-**Documentation**: See [`e2e_tests_readme.md`](../e2e_test.md) for comprehensive e2e test documentation
+**Documentation**: See [`e2e_test.md`](e2e/e2e_test.md) for comprehensive e2e test documentation
 
 **Quick Start**:
 ```bash
@@ -59,8 +59,6 @@ go test ./test/e2e/... -v -- -cluster-type=minikube
 
 **Purpose**: Test individual functions and methods in isolation
 
-**Documentation**: See [`Test_readme.md`](../Operator_tests.md) for unit test documentation
-
 **Quick Start**:
 ```bash
 # Run all unit tests
@@ -69,12 +67,59 @@ go test ./internal/controller/... -v
 # Run with coverage
 go test ./internal/controller/... -v -coverprofile=coverage.out
 ```
+
 ## Running Unit Tests
+
+### Prerequisites
+
+The controller tests use [envtest](https://book.kubebuilder.io/reference/envtest.html), which starts a
+real `etcd` and `kube-apiserver` process locally. Those binaries **must be downloaded once** before
+`go test` can succeed.
+
+#### Option A — `make test` (recommended — handles everything)
+
+`make test` is the single entry point that does it all in the right order:
+code generation → formatting → vetting → download `setup-envtest` tool →
+download `etcd`+`kube-apiserver` binaries → run tests.
+
+```bash
+make test
+```
+
+Run this once on a fresh clone. After it completes, `bin/k8s/1.31.0-<os>-<arch>/`
+exists and `go test` works directly from then on.
+
+#### Option B — `go test` directly (after Option A has run once)
+
+Once `make test` has populated `bin/k8s/`, the suite resolves the binary path
+automatically via `os.Getwd()` — no env var needed:
+
+```bash
+go test ./internal/controller/... -v
+```
+
+> **Why does this work without `KUBEBUILDER_ASSETS`?**
+> The suite checks `KUBEBUILDER_ASSETS` first, then falls back to the absolute
+> path `<repo>/bin/k8s/1.31.0-<os>-<arch>/` using `os.Getwd()`. As long as
+> `bin/k8s/` was populated by a prior `make test`, `go test` finds the binaries
+> with no extra setup.
+
+> **What is `1.31.0`?**
+> The Kubernetes control plane version whose `etcd` and `kube-apiserver` binaries
+> are downloaded. Pinned as `ENVTEST_K8S_VERSION` in the Makefile and mirrored as
+> `envtestK8sVersion` in [`suite_test.go`](../internal/controller/suite_test.go).
+
+#### What each step does
+
+| Step | Command | Purpose |
+|------|---------|---------|
+| First-time setup | `make test` | Installs `setup-envtest`, downloads K8s binaries, runs all tests |
+| Subsequent runs | `go test ./internal/controller/... -v` | Uses cached binaries directly, no env var needed |
 
 ### Basic Commands
 
 ```bash
-# Run all unit tests
+# Run all unit tests (after setup above)
 go test ./internal/controller/... -v
 
 # Run with coverage
@@ -83,10 +128,10 @@ go test ./internal/controller/... -v -coverprofile=coverage.out
 # View coverage report
 go tool cover -html=coverage.out
 
-# Run specific test
+# Run a specific test by name
 go test ./internal/controller/... -v -ginkgo.focus="should generate RBAC"
 
-# Run tests matching pattern
+# Run tests matching a pattern
 go test ./internal/controller/... -v -ginkgo.focus="OpenShift"
 ```
 
